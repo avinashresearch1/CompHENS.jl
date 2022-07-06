@@ -1,0 +1,13 @@
+name = "CompHENS"
+uuid = "873a7a81-90fd-4468-8feb-46a7ba58f008"
+authors = ["Avinash Subramanian"]
+version = "0.1.0"
+
+[compat]
+julia = "1.6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
