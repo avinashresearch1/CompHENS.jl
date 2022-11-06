@@ -1,17 +1,25 @@
 abstract type AbstractStream end
 
+
 """
 $(TYPEDEF)
 
 Single hot stream
 """
 mutable struct HotStream <: AbstractStream
-    name::String
-    T_in::Float64 # May eventually need parametric types when these can be variables. 
+    name::String # May eventually need parametric types when these can be variables.
+    T_in::Float64
     T_out::Float64 
     mcp::Float64   
     h::Float64 # Film heat transfer coefficient
-    info::Dict{String, Any} # Used to hold useful info moving forwards. `Any` here may ruin type inference?
+    add_user_data::Dict{String, Any} # Used to hold useful information moving forwards. `Any` here may ruin type inference?
+    calc::Dict{String, Float64} # New data calculated from input data
+    @add_kwonly function HotStream(name, T_in, T_out, mcp, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+        T_in isa Real && T_out isa Real && mcp isa Real && h isa Real || error("Input data contains a non-real number")
+        T_in >= T_out || error("Supply and Target temperature don't match stream type")
+        mcp > smallest_value && h > smallest_value || error("mcp or h values infeasible")
+        new(name, Float64(T_in), Float64(T_out), Float64(mcp), Float64(h), add_user_data, calc)
+    end 
 end
 
 
@@ -22,11 +30,18 @@ Single cold stream
 """
 mutable struct ColdStream <: AbstractStream
     name::String
-    T_in::Float64 # May eventually need parametric types when these can be variables. 
+    T_in::Float64
     T_out::Float64 
     mcp::Float64   
-    h::Float64 # Film heat transfer coefficient
-    info::Dict{String, Any} # Used to hold useful info moving forwards. `Any` here may ruin type inference?
+    h::Float64
+    add_user_data::Dict{String, Any} 
+    calc::Dict{String, Float64}
+    @add_kwonly function ColdStream(name, T_in, T_out, mcp, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+        T_in isa Real && T_out isa Real && mcp isa Real && h isa Real || error("Input data contains a non-real number")
+        T_in <= T_out || error("Supply and Target temperature don't match stream type")
+        mcp > smallest_value && h > smallest_value || error("mcp or h values infeasible")
+        new(name, Float64(T_in), Float64(T_out), Float64(mcp), Float64(h), add_user_data, calc)
+    end 
 end
 
 abstract type AbstractUtility end
@@ -38,10 +53,16 @@ Simple hot utility stream. Single stream, no configuration information.
 """
 mutable struct SimpleHotUtility <: AbstractUtility
     name::String
-    T_in::Float64 # May eventually need parametric types when these can be variables. 
+    T_in::Float64  
     T_out::Float64   
-    h::Float64 # Film heat transfer coefficient
-    info::Dict{String, Any} # Used to hold useful info moving forwards. `Any` here may ruin type inference?
+    h::Float64 
+    add_user_data::Dict{String, Any}
+    calc::Dict{String, Float64}
+    @add_kwonly function SimpleHotUtility(name, T_in, T_out, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+        T_in isa Real && T_out isa Real && h isa Real || error("Input data contains a non-real number")
+        h > smallest_value || error("h value infeasible")
+        new(name, Float64(T_in), Float64(T_out), Float64(h), add_user_data, calc)
+    end
 end
 
 """
@@ -51,8 +72,14 @@ Simple cold utility stream. Single stream, no configuration information.
 """
 mutable struct SimpleColdUtility <: AbstractUtility
     name::String
-    T_in::Float64 # May eventually need parametric types when these can be variables. 
+    T_in::Float64 
     T_out::Float64   
-    h::Float64 # Film heat transfer coefficient
-    info::Dict{String, Any} # Used to hold useful info moving forwards. `Any` here may ruin type inference?
+    h::Float64 #
+    add_user_data::Dict{String, Any}
+    calc::Dict{String, Float64}
+    @add_kwonly function SimpleColdUtility(name, T_in, T_out, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+        T_in isa Real && T_out isa Real && h isa Real || error("Input data contains a non-real number")
+        h > smallest_value || error("h value infeasible")
+        new(name, Float64(T_in), Float64(T_out), Float64(h), add_user_data, calc)
+    end 
 end

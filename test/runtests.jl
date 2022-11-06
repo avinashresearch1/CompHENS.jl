@@ -2,5 +2,7 @@ using CompHENS
 using Test
 
 @testset "CompHENS.jl" begin
-    # Write your tests here.
+    @testset "Problem Construction" begin
+        include("classic_hens_constructor.jl")
+    end
 end
