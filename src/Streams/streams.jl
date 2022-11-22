@@ -3,6 +3,7 @@ abstract type AbstractStream end
 
 """
 $(TYPEDEF)
+$(TYPEDFIELDS)
 
 Single hot stream
 """
@@ -25,6 +26,7 @@ end
 
 """
 $(TYPEDEF)
+$(TYPEDFIELDS)
 
 Single cold stream
 """
@@ -48,6 +50,7 @@ abstract type AbstractUtility end
 
 """
 $(TYPEDEF)
+$(TYPEDFIELDS)
 
 Simple hot utility stream. Single stream, no configuration information.
 """
@@ -67,6 +70,7 @@ end
 
 """
 $(TYPEDEF)
+$(TYPEDFIELDS)
 
 Simple cold utility stream. Single stream, no configuration information.
 """

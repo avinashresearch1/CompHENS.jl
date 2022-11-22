@@ -11,8 +11,9 @@ mutable struct ClassicHENSProblem  <: AbstractSynthesisProblem
     cold_streams_dict::Dict{String, ColdStream}
     hot_utilities_dict::Dict{String, SimpleHotUtility}
     cold_utilities_dict::Dict{String, SimpleColdUtility}
-    @add_kwonly function ClassicHENSProblem(hot_streams_dict, cold_streams_dict, hot_utilities_dict = Dict{String, SimpleHotUtility}(), cold_utilities_dict = Dict{String, SimpleColdUtility}())
-        new(hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict)
+    ΔT_min::Float64
+    @add_kwonly function ClassicHENSProblem(hot_streams_dict, cold_streams_dict, hot_utilities_dict = Dict{String, SimpleHotUtility}(), cold_utilities_dict = Dict{String, SimpleColdUtility}(); ΔT_min = 10)
+        new(hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict, ΔT_min)
     end
 end
 
@@ -23,7 +24,7 @@ Reads data from an XSLX file in `file_path_xlsx` and constructs a `ClassicHENSPr
 
 - **`file_path_xlsx`** needs to be a string that ends in .xlsx
 """
-function ClassicHENSProblem(file_path_xlsx::String)
+function ClassicHENSProblem(file_path_xlsx::String; ΔT_min)
     # Column names of XLSX interface:
     sheet_label, stream_label, type_label, t_in_label, t_out_label, heat_cap_label, heat_coeff_label, cost_label, forbidden_label, compulsory_label = "StreamData", "Stream", "Type [H, C, HU or CU]", "Supply Temperature T_in [C or K]", "Target Temperature T_out [C or K]", "Heat Capacity mCp [kW/C or kW/K]", "Heat transfer coefficient h [kW/m2C or kW/m2K]", "Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches"
     additional_user_fields = Set{String}(["Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches", "Maximum Temperature", "Mininum Temperature"])
@@ -54,6 +55,7 @@ function ClassicHENSProblem(file_path_xlsx::String)
         end
     end
 
-    return ClassicHENSProblem(hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict)
+    ## TODO: Logic to get `ΔT_min` from XLSX sheet.  
+    return ClassicHENSProblem(hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict; ΔT_min)
 end
 
