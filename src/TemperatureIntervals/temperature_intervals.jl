@@ -1,3 +1,5 @@
+using Plots
+
 """
 $(TYPEDEF)
 $(TYPEDFIELDS)
@@ -16,18 +18,19 @@ mutable struct TemperatureInterval
     """The residual heat supplied from the interval to the adjacent colder `TemperatureInterval`. Defined after solving optimization problem."""
     R_out::Float64
     """The heat contribution of the hot stream to the interval"""
-    hot_streams_contribs
+    hot_streams_contribs::Dict{String, Float64}
     """The heat removed by cold stream from the interval"""
-    cold_streams_contribs
+    cold_streams_contribs::Dict{String, Float64}
     """The contribution of the hot utility to the interval"""
-    hot_utilities_contribs
+    hot_utilities_contribs::Dict{String, Float64}
     """The heat removed by cold utility from the interval"""
-    cold_utilities_contribs
+    cold_utilities_contribs::Dict{String, Float64}
     @add_kwonly function TemperatureInterval(T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in = 0.0, R_out = 0.0, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}())
         R_in >= 0.0 && R_out >= 0.0 || error("Residuals to temperature interval negative")
         new(T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
     end
 end
+
 """
 $(TYPEDSIGNATURES)
 
@@ -96,3 +99,45 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
     end
     return intervals
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+Plots the hot-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
+"""
+function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+    T_vals = Float64[last(sorted_intervals).T_hot_lower]
+    Q_vals = Float64[ref_enthalpy]
+    for interval in reverse(sorted_intervals)
+        println(interval.T_hot_upper, " ", interval.T_hot_lower, " ", interval.total_stream_heat_in)
+        push!(T_vals, interval.T_hot_upper)
+        ref_enthalpy += interval.total_stream_heat_in
+        push!(Q_vals, ref_enthalpy)
+    end
+    plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false)
+end
+
+#=
+"""
+$(TYPEDSIGNATURES)
+
+Gets the total heat into interval from participating heat streams.
+"""
+function total_stream_heat_in(interval::TemperatureInterval)
+    return sum(values(hot_streams_contribs)) 
+
+
+end
+=#
+
+function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
+    if sym == :total_stream_heat_in
+        return sum(values(interval.hot_streams_contribs))
+    elseif sym == :total_stream_heat_out
+        return sum(values(interval.cold_streams_contribs))
+    else # fallback to getfield
+        return getfield(interval, sym)
+    end
+end
+
+

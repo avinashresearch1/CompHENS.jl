@@ -8,3 +8,4 @@ file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0)
 intervals = CompHENS.generate_heat_cascade_intervals(prob)
+CompHENS.plot_hot_composite_curve(intervals; ylabel = "T [°C]", xlabel = "Q [kW]")
