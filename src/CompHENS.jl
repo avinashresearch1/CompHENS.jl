@@ -64,4 +64,8 @@ include("Streams/streams.jl")
 export ClassicHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 
+# Holds all kinds of temperature intervals
+export TemperatureInterval
+include("TemperatureIntervals/temperature_intervals.jl")
+
 end
