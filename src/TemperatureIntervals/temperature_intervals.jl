@@ -114,8 +114,43 @@ function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval};
         ref_enthalpy += interval.total_stream_heat_in
         push!(Q_vals, ref_enthalpy)
     end
-    plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false)
+    plt = plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false)
+    return plt, Q_vals, T_vals
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+Plots the cold-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
+"""
+function plot_cold_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+    T_vals = Float64[last(sorted_intervals).T_cold_lower]
+    Q_vals = Float64[ref_enthalpy]
+    for interval in reverse(sorted_intervals)
+        println(interval.T_cold_upper, " ", interval.T_cold_lower, " ", interval.total_stream_heat_out)
+        push!(T_vals, interval.T_cold_upper)
+        ref_enthalpy += interval.total_stream_heat_out
+        push!(Q_vals, ref_enthalpy)
+    end
+    plt = plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :blue, shape = :circle, legend = false)
+    return plt, Q_vals, T_vals
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Plots the cold-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
+"""
+function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; hot_ref_enthalpy = 0.0, cold_ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+    plt_hot, Q_hot_ints, T_hot_ints = CompHENS.plot_hot_composite_curve(sorted_intervals; ref_enthalpy = hot_ref_enthalpy); 
+    plt_cold, Q_cold_int, T_cold_int = CompHENS.plot_cold_composite_curve(sorted_intervals; ref_enthalpy = cold_ref_enthalpy); 
+    
+    # No point manipulating the plots. plot!(plt1, plt2) unpacks the data anyway. 
+    x_limits = ((min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2))
+    plot(Q_hot_ints, T_hot_ints, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits)
+    plot!(Q_cold_int, T_cold_int, color = :blue, shape = :circle, legend = false)
+end
+
 
 #=
 """
