@@ -9,6 +9,7 @@ Holds a single temperature interval. Each temperature interval is defined by a b
 QN: Make this immutable?
 """
 mutable struct TemperatureInterval
+    index::Int64
     T_hot_upper::Float64
     T_hot_lower::Float64
     T_cold_upper::Float64
@@ -21,20 +22,28 @@ mutable struct TemperatureInterval
     hot_streams_contribs::Dict{String, Float64}
     """The heat removed by cold stream from the interval"""
     cold_streams_contribs::Dict{String, Float64}
-    """The contribution of the hot utility to the interval"""
+    """Hot utility entering system at interval. Note: Each HU can only enter at one interval"""
     hot_utilities_contribs::Dict{String, Float64}
-    """The heat removed by cold utility from the interval"""
+    """Cold utility entering system at interval. Note: Each CU can only enter at one interval"""
     cold_utilities_contribs::Dict{String, Float64}
-    @add_kwonly function TemperatureInterval(T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in = 0.0, R_out = 0.0, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}())
+    @add_kwonly function TemperatureInterval(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in = 0.0, R_out = 0.0, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}())
         R_in >= 0.0 && R_out >= 0.0 || error("Residuals to temperature interval negative")
-        new(T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
+        new(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
+    end
+end
+
+Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
+function Base.show(io::IO, intervals::Vector{TemperatureInterval})
+    for interval in intervals
+        println(io, "itv_", interval.index, ":  Hot side: [", interval.T_hot_upper, ", ", interval.T_hot_lower, "]  Cold side: [", interval.T_cold_upper, ", ", interval.T_cold_lower, "]")
     end
 end
 
 """
 $(TYPEDSIGNATURES)
 
-Generates the intervals necessary for the heat cascade diagram. Currently only works with one hot and one cold utility
+Generates the intervals necessary for the heat cascade diagram. Currently only works with one hot and one cold utility.
+TODO: Multiple utilities.
 """
 function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
     intervals = TemperatureInterval[]
@@ -95,7 +104,7 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
         end
 
         R_in, R_out = 0.0, 0.0 # Place holders. To be attained from optimizer.
-        push!(intervals, TemperatureInterval(T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs))
+        push!(intervals, TemperatureInterval(i, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs))
     end
     return intervals
 end
@@ -105,11 +114,11 @@ $(TYPEDSIGNATURES)
 
 Plots the hot-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
 """
-function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", verbose = false)
     T_vals = Float64[last(sorted_intervals).T_hot_lower]
     Q_vals = Float64[ref_enthalpy]
     for interval in reverse(sorted_intervals)
-        println(interval.T_hot_upper, " ", interval.T_hot_lower, " ", interval.total_stream_heat_in)
+        !verbose || println(interval.T_hot_upper, " ", interval.T_hot_lower, " ", interval.total_stream_heat_in)
         push!(T_vals, interval.T_hot_upper)
         ref_enthalpy += interval.total_stream_heat_in
         push!(Q_vals, ref_enthalpy)
@@ -123,11 +132,11 @@ $(TYPEDSIGNATURES)
 
 Plots the cold-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
 """
-function plot_cold_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+function plot_cold_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", verbose = false)
     T_vals = Float64[last(sorted_intervals).T_cold_lower]
     Q_vals = Float64[ref_enthalpy]
     for interval in reverse(sorted_intervals)
-        println(interval.T_cold_upper, " ", interval.T_cold_lower, " ", interval.total_stream_heat_out)
+        !verbose || println(interval.T_cold_upper, " ", interval.T_cold_lower, " ", interval.total_stream_heat_out)
         push!(T_vals, interval.T_cold_upper)
         ref_enthalpy += interval.total_stream_heat_out
         push!(Q_vals, ref_enthalpy)
@@ -146,8 +155,9 @@ function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; hot
     plt_cold, Q_cold_int, T_cold_int = CompHENS.plot_cold_composite_curve(sorted_intervals; ref_enthalpy = cold_ref_enthalpy); 
     
     # No point manipulating the plots. plot!(plt1, plt2) unpacks the data anyway. 
-    x_limits = ((min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2))
-    plot(Q_hot_ints, T_hot_ints, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits)
+    x_limits = (floor(Int64, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), ceil(Int64, round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2)))
+    y_limits = (floor(Int64, min(minimum(T_hot_ints), minimum(T_cold_int))), ceil(Int64, max(maximum(T_hot_ints), maximum(T_cold_int))))
+    plot(Q_hot_ints, T_hot_ints, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits, ylims = y_limits)
     plot!(Q_cold_int, T_cold_int, color = :blue, shape = :circle, legend = false)
 end
 

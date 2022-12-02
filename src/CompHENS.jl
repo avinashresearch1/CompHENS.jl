@@ -65,7 +65,10 @@ export ClassicHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 
 # Holds all kinds of temperature intervals
-export TemperatureInterval, generate_heat_cascade_intervals, plot_hot_composite_curve
+export TemperatureInterval, generate_heat_cascade_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve
 include("TemperatureIntervals/temperature_intervals.jl")
+
+export solve_minimum_utilities_subproblem
+include("SubProblems/minimum_utilities_subprob.jl")
 
 end
