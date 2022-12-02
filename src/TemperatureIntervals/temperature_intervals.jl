@@ -103,9 +103,9 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Plots the hot-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
+Plots the hot-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. `kwargs` are passed to plot
 """
-function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", kwargs...)
     T_vals = Float64[last(sorted_intervals).T_hot_lower]
     Q_vals = Float64[ref_enthalpy]
     for interval in reverse(sorted_intervals)
@@ -114,7 +114,8 @@ function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval};
         ref_enthalpy += interval.total_stream_heat_in
         push!(Q_vals, ref_enthalpy)
     end
-    plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false)
+    plt = plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, kwargs...)
+    return plt
 end
 
 #=

@@ -1,12 +1,13 @@
 # Workflow using XLSX input:
 # 1. Import necessary packages:
 using CompHENS
+using Plots
 
 # 2. Specify path to xlsx file
-file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
+file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ContainerGlass.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0)
 intervals = CompHENS.generate_heat_cascade_intervals(prob)
-kwargs = (;ylim = (0, 400.0))
-CompHENS.plot_hot_composite_curve(intervals; ylabel = "T [°C]", xlabel = "Q [kW]", kwargs...)
+plt = CompHENS.plot_hot_composite_curve(intervals; ylabel = "T [°C]", xlabel = "Q [PJ/year]")
+Plots.savefig(plt, "Container_glass.pdf")
