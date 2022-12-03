@@ -4,7 +4,7 @@ using Plots
 $(TYPEDEF)
 $(TYPEDFIELDS)
 
-Holds a single temperature interval. Each temperature interval is defined by a box containing the upper and lower temperatures on the hot and cold sides. The `*_dict` contain only the streams that participate in the interval.
+Holds a single temperature interval. Each temperature interval is defined by a box containing the upper and lower temperatures on the hot and cold sides. The `*_contribs` contain only the streams that participate in the interval.
 
 QN: Make this immutable?
 """
