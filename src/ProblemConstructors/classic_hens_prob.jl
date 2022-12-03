@@ -6,7 +6,7 @@ $(TYPEDFIELDS)
 
 Holds the classical HENS problem with fixed stream data. 
 """
-mutable struct ClassicHENSProblem  <: AbstractSynthesisProblem 
+struct ClassicHENSProblem  <: AbstractSynthesisProblem 
     hot_streams_dict::Dict{String, HotStream}
     cold_streams_dict::Dict{String, ColdStream}
     hot_utilities_dict::Dict{String, SimpleHotUtility}
