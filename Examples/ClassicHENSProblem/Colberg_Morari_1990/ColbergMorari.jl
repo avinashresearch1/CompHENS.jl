@@ -9,7 +9,7 @@ using HiGHS
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
-prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0)
+prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
 
 # 4. Subdivide into intervals and attain the hot and cold composite curves.
 intervals = CompHENS.generate_heat_cascade_intervals(prob)
