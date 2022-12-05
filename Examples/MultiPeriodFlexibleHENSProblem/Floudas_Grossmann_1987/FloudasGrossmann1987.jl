@@ -11,10 +11,8 @@ using DataFrames
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_FloudasGrossmann.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `MultiPeriodFlexibleHENSProblem`
-XLSX.openxlsx(file_path_xlsx) do xf
-    sheet_names = XLSX.sheetnames(xf)
-end
 
+prob = MultiPeriodFlexibleHENSProblem(file_path_xlsx, 3; verbose = true)
 
 
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0)
