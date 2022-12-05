@@ -25,7 +25,7 @@ ylims!((300,700))
 
 # Using formulation of Prob. 16.5 Biegler, Grossmann, Westerberg book. Pg. 533.
 
-min_utils = solve_minimum_utilities_subproblem(prob)
+min_utils_soln = solve_minimum_utilities_subproblem(prob)
 
 
 

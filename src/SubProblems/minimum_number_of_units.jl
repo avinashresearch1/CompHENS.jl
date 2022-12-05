@@ -1,22 +1,6 @@
 using JuMP
 using HiGHS
-
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
-
-Holds the solution to the minimum utilities subproblem.
-[QN:] Is it better to mutate the `prob` to store the results?
-"""
-mutable struct MinUtilitiesSolution{T}  <: AbstractSubProblemSolution 
-    hot_utilities_consumption::Dict{String, T}
-    cold_utilities_consumption::Dict{String, T}
-    total_utility_cost::T
-    pinch_points::Vector{Tuple}
-end
-
-
-
+#=
 """
 $(TYPEDSIGNATURES)
 
@@ -26,7 +10,7 @@ Returns:
 Supports multiple utilities if appropriately matched to interval.
 [TODO: Utility costs]
 """
-function solve_minimum_utilities_subproblem(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = true)
+function solve_minimum_units_subproblem(prob::ClassicHENSProblem, sol_min_utils::; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = true)
     @info "Solving the minimum utilities subproblem"
     intervals = CompHENS.generate_heat_cascade_intervals(prob)
     subprob = Model()
@@ -60,21 +44,13 @@ function solve_minimum_utilities_subproblem(prob::ClassicHENSProblem; time_limit
 
 
     # Post-processing
-    hot_utilities_consumption = Dict{String, Float64}()
-    cold_utilities_consumption = Dict{String, Float64}()
-    total_utility_cost = objective_value(subprob)
-    pinch_points = Tuple[]
+    sol = Dict()
     for hu in HU_set
-        push!(hot_utilities_consumption, hu => value.(Q_in[hu]))
+        push!(sol, hu => value.(Q_in[hu]))
     end
     for cu in CU_set
-        push!(cold_utilities_consumption, cu => value.(Q_out[cu]))
+        push!(sol, cu => value.(Q_out[cu]))
     end
-
-    for interval in setdiff(intervals, [last(intervals)])
-        if value.(R[interval]) <= smallest_value
-            push!(pinch_points, (interval.T_hot_lower, interval.T_cold_lower))
-        end
-    end
-    return MinUtilitiesSolution(hot_utilities_consumption, cold_utilities_consumption, total_utility_cost, pinch_points)
+    return sol
 end
+=#
