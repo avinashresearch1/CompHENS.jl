@@ -54,6 +54,8 @@ Holds the solution of an `AbstractSubProblem`
 """
 abstract type AbstractSubProblemSolution end
 
+export AbstractSynthesisProblem, AbstractSynthesisAlgorithm, AbstractSolution  
+
 const smallest_value = 1e-4
 
 # Holds structures for streams
