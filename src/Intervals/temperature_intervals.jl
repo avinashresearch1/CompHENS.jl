@@ -4,24 +4,20 @@ using Plots
 $(TYPEDEF)
 $(TYPEDFIELDS)
 
-Holds a single temperature interval. Each temperature interval is defined by a box containing the upper and lower temperatures on the hot and cold sides. The `*_contribs` contain only the streams that participate in the interval.
+Holds a single temperature interval. Note are attained from either the hot or cold composite curves, not both. 
+For double-sided intervals covering both hot and cold side composite curves, use `TransshipmentIntervals`. 
+Usually this single-sided `TemperatureInterval` is sufficient for transportation problems.
 """
-mutable struct TemperatureInterval{R}
+mutable struct TemperatureInterval{R <: Real}
     index::Int64
-    T_hot_upper::point{R}
-    T_hot_lower::point{R}
-    T_cold_upper::point{R}
-    T_cold_lower::point{R}
-    """The heat contribution of the hot stream to the interval"""
-    hot_streams_contribs::Dict{String, R}
-    """The heat removed by cold stream from the interval"""
-    cold_streams_contribs::Dict{String, R}
-    """Hot utility entering system at interval. Note: Each HU can only enter at one interval"""
-    hot_utilities_contribs::Dict{String, R}
-    """Cold utility entering system at interval. Note: Each CU can only enter at one interval"""
-    cold_utilities_contribs::Dict{String, R}
-    @add_kwonly function TemperatureInterval{R}(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}()) where {R}
-        new(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
+    upper::point{R}
+    lower::point{R}
+    """Participating streams in interval"""
+    streams::Dict{String, Union{HotStream, ColdStream, SimpleHotUtility, SimpleColdUtility}}
+    """Contributions of each of the participating streams. Hot adding, Cold removing heat."""
+    contributions::Dict{String, R}
+    @add_kwonly function TemperatureInterval{R}(index, upper, lower, streams = Dict{String, Union{HotStream, ColdStream, SimpleHotUtility, SimpleColdUtility}}(), contributions = Dict{String, R}()) where {R}
+        new(index, upper, lower, streams, contributions)
     end
 end
 
@@ -34,27 +30,91 @@ function Base.show(io::IO, intervals::Vector{TemperatureInterval})
     end
 end
 =#
-#=
-function print_full(intervals::Vector{TemperatureInterval})
+
+function print_full(intervals::Vector{TemperatureInterval}; digits = 1)
     for interval in intervals
-        println("itv_", interval.index, ":  Hot side: [", interval.T_hot_upper.T, ", ", interval.T_hot_lower.T, "]  Cold side: [", interval.T_cold_upper.T, ", ", interval.T_cold_lower.T, "]")
+        print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
+        for (k,v) in interval.contributions
+            Q = round(v; digits)
+            print(" $k: $Q")
+        end
+        print("\n")
     end
 end
-=#
 
 
 """
 $(TYPEDSIGNATURES)
 
-Generates the intervals necessary for the heat cascade diagram. Currently only works with one hot and one cold utility.
-TODO: Multiple utilities.
-
-Potential refactor: 
-1) Do the sorting and first four lines of four loop that generates `Vector{TemperatureInterval}`. 
-2) Write four different _get_stream_contribution(interval::TemperatureInterval, stream::<VariousStreamTypes>) here
+Returns a vector of sorted `TemperatureInterval`s with the `upper` and `lower` temperatures populated but with the `streams` and `contributions` empty. 
 """
-function generate_heat_cascade_intervals(prob::ClassicHENSProblem, ΔT_min = prob.ΔT_min)
+function initialize_temperature_intervals(temp_vec::Vector)
+    # QN: Does this mess up type inference? Put Float64 for now, should find how to generalize 
+    sort!(unique!(temp_vec), rev = true)
     intervals = TemperatureInterval[]
+    for i in 1:length(temp_vec)-1
+        upper = point{Float64}(T = temp_vec[i])
+        lower = point{Float64}(T = temp_vec[i+1])
+        push!(intervals, TemperatureInterval{Float64}(index = i, upper = upper, lower = lower))
+    end
+    return intervals
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Mutates the `streams` and `contributions`. Method dispatched depends on type of stream. Only for streams not utilities.
+"""
+function assign_stream!(interval::TemperatureInterval, stream::HotStream)
+    if (stream.T_in >= interval.upper.T) && (stream.T_out <= interval.lower.T)
+        push!(interval.streams, stream.name => stream) 
+        Q_contrib = (interval.upper.T - interval.lower.T)*stream.mcp
+        push!(interval.contributions, stream.name => Q_contrib)
+    end
+end
+
+function assign_stream!(interval::TemperatureInterval, stream::ColdStream)
+    if (stream.T_in <= interval.lower.T) && (stream.T_out >= interval.upper.T)
+        push!(interval.streams, stream.name => stream) 
+        Q_contrib = (interval.upper.T - interval.lower.T)*stream.mcp
+        push!(interval.contributions, stream.name => Q_contrib)
+    end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Assigns utility based on cheapest utility principle. 
+Thus each hot utility is assigned only to the hottest interval that can accept heat from it.
+Each cold utility is assigned to the coldest interval that can reject heat to it.
+Note: `sorted_intervals` should be a vector of the entire vector of `TemperatureInterval`s sorted from hot to cold.
+"""
+function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, hot_utility::SimpleHotUtility)
+    for interval in sorted_intervals # Has to be higher than upper?
+        if hot_utility.T_out >= interval.upper.T
+            push!(interval.streams, hot_utility.name => hot_utility)
+            push!(interval.contributions, hot_utility.name => hot_utility.Q)
+        end
+        break
+    end
+end
+
+function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, cold_utility::SimpleColdUtility)
+    for interval in reverse(sorted_intervals) # Get first interval that is hotter than cu.
+        if interval.lower.T >= cold_utility.T_in
+            push!(interval.streams, cold_utility.name => cold_utility)
+            push!(interval.contributions, cold_utility.name => cold_utility.Q)
+        end
+        break
+    end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Generates the double-sided intervals necessary for a transshipment problem (as visualized in a heat cascade diagram).
+"""
+function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = prob.ΔT_min)
     hot_side_temps, cold_side_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
         push!(hot_side_temps, v.T_in, v.T_out)
@@ -71,51 +131,33 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem, ΔT_min = pro
     for (k,v) in prob.cold_streams_dict
         push!(cold_side_temps, v.T_in, v.T_out)
     end
-    sort!(unique!(hot_side_temps), rev = true)
-    sort!(unique!(cold_side_temps), rev = true)
-    
-    length(hot_side_temps) == length(cold_side_temps) && all(hot_side_temps .- cold_side_temps .== ΔT_min) || error("Inconsistency in attaining sorted temperature intervals.")
-    
-    for i in 1:length(hot_side_temps)-1
-        hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs = Dict{String, Float64}(), Dict{String, Float64}(), Dict{String, Float64}(), Dict{String, Float64}()
-        # hot_utilities_contribs, cold_utilities_contribs = Dict{String, Float64}(keys(prob.hot_utilities_dict) .=> 0.0), Dict{String, Float64}(keys(prob.cold_utilities_dict) .=> 0.0)
-        T_hot_upper = hot_side_temps[i]
-        T_hot_lower = hot_side_temps[i+1]
-        T_cold_upper = cold_side_temps[i]
-        T_cold_lower = cold_side_temps[i+1]
-        
-        # Filtering the participating streams. Would change for forbidden matches. No easy way to avoid inner for loop:
-        for (k,v) in prob.hot_streams_dict
-            if (v.T_in >= T_hot_upper) && (v.T_out <= T_hot_lower)
-                Q_contrib = (T_hot_upper - T_hot_lower)*v.mcp
-                push!(hot_streams_contribs, k => Q_contrib)
-            end
-        end
 
-        for (k,v) in prob.cold_streams_dict
-            if (v.T_in <= T_cold_lower) && (v.T_out >= T_cold_upper)
-                Q_contrib = (T_hot_upper - T_hot_lower)*v.mcp
-                push!(cold_streams_contribs, k => Q_contrib)
-            end
-        end
+    hot_side = initialize_temperature_intervals(hot_side_temps)
+    cold_side = initialize_temperature_intervals(cold_side_temps)
 
-        if i == 1 # TODO: Extend for multiple utilities. 
-            for (k,v) in prob.hot_utilities_dict
-                push!(hot_utilities_contribs, k => v.Q)
-            end
+    for interval in hot_side
+        for stream in values(prob.hot_streams_dict)
+            assign_stream!(interval, stream)
         end
-
-        if i == length(hot_side_temps)-1
-            for (k,v) in prob.cold_utilities_dict
-                push!(cold_utilities_contribs, k => v.Q)
-            end
-        end
-
-        push!(intervals, TemperatureInterval(i, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs))
     end
-    return intervals
+
+    for interval in cold_side
+        for stream in values(prob.cold_streams_dict)
+            assign_stream!(interval, stream)
+        end
+    end
+
+    for utility in values(prob.hot_utilities_dict)
+        assign_utility!(hot_side, utility)
+    end
+
+    for utility in values(prob.cold_utilities_dict)
+        assign_utility!(cold_side, utility)
+    end
+    return TransshipmentIntervals{Float64}(hot_side, cold_side, ΔT_min)
 end
 
+#=
 """
 $(TYPEDSIGNATURES)
 
@@ -206,4 +248,34 @@ function get_contribution(stream::String, interval::TemperatureInterval,)
     stream in keys(interval.cold_utilities_contribs) && return interval.cold_utilities_contribs[stream]
     return 0.0
 end
+=#
+"""
+$(TYPEDEF)
+$(TYPEDFIELDS)
 
+Holds two vectors of `TemperatureInterval`s one for the hot side, one for the cold side.
+.
+"""
+mutable struct TransshipmentIntervals{R <: Real}
+    hot_side::Vector{TemperatureInterval{R}}
+    cold_side::Vector{TemperatureInterval{R}}
+    ΔT_min::Float64
+    @add_kwonly function TransshipmentIntervals{R}(hot_side, cold_side, ΔT_min = 10.0) where {R}
+        # Sanity checks
+        length(hot_side) == length(cold_side) || error("Inconsistent lengths")
+        for i in 1:length(hot_side)
+            (hot_side[i].upper.T - cold_side[i].upper.T == ΔT_min) && (hot_side[i].lower.T - cold_side[i].lower.T == ΔT_min) || error("Inconsistent ΔT_min")
+            for (k,v) in hot_side[i].streams
+                v isa Union{HotStream, SimpleHotUtility} || error("Non-hot stream assigned to hot_side of transshipment interval.")
+            end
+            for (k,v) in cold_side[i].streams
+                v isa Union{ColdStream, SimpleColdUtility} || error("Non-cold stream assigned to cold_side of transshipment interval.")
+            end
+        end
+        new(hot_side, cold_side, ΔT_min)
+    end
+end
+
+
+# Define necessary functions to iterate over `TransshipmentIntervals`
+Base.length(coll::TransshipmentIntervals) = length(coll.hot_side)

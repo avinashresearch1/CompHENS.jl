@@ -71,7 +71,9 @@ export point
 include("Intervals/curve_points.jl")
 
 # Holds all kinds of temperature intervals
-export TemperatureInterval, generate_heat_cascade_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve, get_contribution
+export TemperatureInterval, TransshipmentIntervals, 
+generate_transshipment_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve, 
+get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!
 include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!
