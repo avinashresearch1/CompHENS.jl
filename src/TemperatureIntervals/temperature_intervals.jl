@@ -44,8 +44,12 @@ $(TYPEDSIGNATURES)
 
 Generates the intervals necessary for the heat cascade diagram. Currently only works with one hot and one cold utility.
 TODO: Multiple utilities.
+
+Potential refactor: 
+1) Do the sorting and first four lines of four loop that generates `Vector{TemperatureInterval}`. 
+2) Write four different _get_stream_contribution(interval::TemperatureInterval, stream::<VariousStreamTypes>) here
 """
-function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
+function generate_heat_cascade_intervals(prob::ClassicHENSProblem, ΔT_min = prob.ΔT_min)
     intervals = TemperatureInterval[]
     hot_side_temps, cold_side_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
@@ -53,11 +57,11 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
     end
 
     for (k,v) in prob.cold_streams_dict
-        push!(hot_side_temps, v.T_in + prob.ΔT_min, v.T_out + prob.ΔT_min)
+        push!(hot_side_temps, v.T_in + ΔT_min, v.T_out + ΔT_min)
     end
 
     for (k,v) in prob.hot_streams_dict
-        push!(cold_side_temps, v.T_in - prob.ΔT_min, v.T_out - prob.ΔT_min)
+        push!(cold_side_temps, v.T_in - ΔT_min, v.T_out - ΔT_min)
     end
 
     for (k,v) in prob.cold_streams_dict
@@ -66,7 +70,7 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
     sort!(unique!(hot_side_temps), rev = true)
     sort!(unique!(cold_side_temps), rev = true)
     
-    length(hot_side_temps) == length(cold_side_temps) && all(hot_side_temps .- cold_side_temps .== prob.ΔT_min) || error("Inconsistency in attaining sorted temperature intervals.")
+    length(hot_side_temps) == length(cold_side_temps) && all(hot_side_temps .- cold_side_temps .== ΔT_min) || error("Inconsistency in attaining sorted temperature intervals.")
     
     for i in 1:length(hot_side_temps)-1
         hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs = Dict{String, Float64}(), Dict{String, Float64}(), Dict{String, Float64}(), Dict{String, Float64}()
@@ -93,13 +97,13 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem)
 
         if i == 1 # TODO: Extend for multiple utilities. 
             for (k,v) in prob.hot_utilities_dict
-                push!(hot_utilities_contribs, k => Inf)
+                push!(hot_utilities_contribs, k => v.Q)
             end
         end
 
         if i == length(hot_side_temps)-1
             for (k,v) in prob.cold_utilities_dict
-                push!(cold_utilities_contribs, k => Inf)
+                push!(cold_utilities_contribs, k => v.Q)
             end
         end
 

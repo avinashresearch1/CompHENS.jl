@@ -20,10 +20,9 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Constructs and solves a minimum utilities optimization problem. 
+Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_1983 to determine the minimum utility cost.
 Returns:
-- sol: A dictionary mapping the `keys(prob.hot_utilities_dict)`, `keys(prob.cold_utilities_dict)` to their minimum utility requirements.
-Supports multiple utilities if appropriately matched to interval.
+- `sol::MinUtilitiesSolution` that contains the utility consumptions, total utility costs and the pinch points.  
 [TODO: Utility costs]
 """
 function solve_minimum_utilities_subproblem(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = true)
