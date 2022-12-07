@@ -212,6 +212,24 @@ end
 
 Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(interval_tship.index)")
 
+function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
+    for interval in intervals
+        println("itv_", interval.index, " H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
+    end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Gets the contribution of a stream to the temperature interval.
+Returns 0.0 if no contribution.
+"""
+function get_contribution(stream::String, interval::TemperatureInterval)
+    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
+    # TODO: Potential bug returning 0.0 for nonexistent streams.].
+    stream in keys(interval.contributions) && return interval.contributions[stream]
+    return 0.0
+end
 
 #=
 """
