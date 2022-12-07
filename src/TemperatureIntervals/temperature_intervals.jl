@@ -33,11 +33,16 @@ mutable struct TemperatureInterval
 end
 
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
+
+#= DEPRECATED gives strange bugs with JuMP set iteration to have members printed differently from collection.
 function Base.show(io::IO, intervals::Vector{TemperatureInterval})
     for interval in intervals
         println(io, "itv_", interval.index, ":  Hot side: [", interval.T_hot_upper, ", ", interval.T_hot_lower, "]  Cold side: [", interval.T_cold_upper, ", ", interval.T_cold_lower, "]")
     end
 end
+=#
+
+
 
 """
 $(TYPEDSIGNATURES)
@@ -189,4 +194,18 @@ function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
     end
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Gets the contribution of a stream to the interval. Returns 0.0 if no contribution.
+"""
+function get_contribution(stream::String, interval::TemperatureInterval,)
+    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
+    # TODO: Potential bug returning 0.0 for nonexistent streams.].
+    stream in keys(interval.hot_streams_contribs) && return interval.hot_streams_contribs[stream]
+    stream in keys(interval.cold_streams_contribs) && return interval.cold_streams_contribs[stream]
+    stream in keys(interval.hot_utilities_contribs) && return interval.hot_utilities_contribs[stream]
+    stream in keys(interval.cold_utilities_contribs) && return interval.cold_utilities_contribs[stream]
+    return 0.0
+end
 
