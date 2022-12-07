@@ -23,13 +23,33 @@ end
 
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
 
-#= DEPRECATED gives strange bugs with JuMP set iteration to have members printed differently from collection.
-function Base.show(io::IO, intervals::Vector{TemperatureInterval})
-    for interval in intervals
-        println(io, "itv_", interval.index, ":  Hot side: [", interval.T_hot_upper, ", ", interval.T_hot_lower, "]  Cold side: [", interval.T_cold_upper, ", ", interval.T_cold_lower, "]")
+# Code design choice: Instead of having fields in `TemperatureInterval` for each stream type,
+# idea is that it is better/more extensible to compute (lazily) as below.
+function Base.getproperty(interval::TemperatureInterval, sym::Symbol)   
+    if sym == :hot_utils
+        return filter(interval.contributions) do (k,v)
+            interval.streams[k] isa SimpleHotUtility
+        end
+    elseif sym == :cold_utils
+        return filter(interval.contributions) do (k,v)
+            interval.streams[k] isa SimpleColdUtility
+        end
+    elseif sym == :hot_streams
+        return filter(interval.contributions) do (k,v)
+            interval.streams[k] isa HotStream
+        end
+    elseif sym == :cold_streams
+        return filter(interval.contributions) do (k,v)
+            interval.streams[k] isa ColdStream
+        end
+    elseif sym == :total_stream_heat_in
+        return sum(values(interval.hot_streams))
+    elseif sym == :total_stream_heat_out
+        return sum(values(interval.cold_streams))
+    else # fallback to getfield
+        return getfield(interval, sym)
     end
 end
-=#
 
 function print_full(intervals::Vector{TemperatureInterval}; digits = 1)
     for interval in intervals
@@ -119,43 +139,79 @@ function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = pr
     for (k,v) in prob.hot_streams_dict
         push!(hot_side_temps, v.T_in, v.T_out)
     end
-
+    
     for (k,v) in prob.cold_streams_dict
         push!(hot_side_temps, v.T_in + ΔT_min, v.T_out + ΔT_min)
     end
-
+    
     for (k,v) in prob.hot_streams_dict
         push!(cold_side_temps, v.T_in - ΔT_min, v.T_out - ΔT_min)
     end
-
+    
     for (k,v) in prob.cold_streams_dict
         push!(cold_side_temps, v.T_in, v.T_out)
     end
-
+    
     hot_side = initialize_temperature_intervals(hot_side_temps)
     cold_side = initialize_temperature_intervals(cold_side_temps)
-
+    
+    length(hot_side) == length(cold_side) || error("Inconsistent lengths")
+    
     for interval in hot_side
         for stream in values(prob.hot_streams_dict)
             assign_stream!(interval, stream)
         end
     end
-
+    
     for interval in cold_side
         for stream in values(prob.cold_streams_dict)
             assign_stream!(interval, stream)
         end
     end
-
+    
     for utility in values(prob.hot_utilities_dict)
         assign_utility!(hot_side, utility)
     end
-
+    
     for utility in values(prob.cold_utilities_dict)
         assign_utility!(cold_side, utility)
     end
-    return TransshipmentIntervals{Float64}(hot_side, cold_side, ΔT_min)
+    
+    intervals_tship = TransshipmentInterval[]
+    for i in 1:length(hot_side)
+        push!(intervals_tship, TransshipmentInterval{Float64}(hot_side[i], cold_side[i], ΔT_min))
+    end
+    return intervals_tship
 end
+
+"""
+$(TYPEDEF)
+$(TYPEDFIELDS)
+
+Holds two vectors of `TemperatureInterval`s one for the hot side, one for the cold side.
+.
+"""
+mutable struct TransshipmentInterval{R <: Real}
+    index::Int64
+    hot_side::TemperatureInterval{R}
+    cold_side::TemperatureInterval{R}
+    ΔT_min::Float64
+    @add_kwonly function TransshipmentInterval{R}(hot_side, cold_side, ΔT_min = 10.0) where {R}
+        index = hot_side.index
+        index == cold_side.index || error("Mismatched hot/cold indexes")
+        (hot_side.upper.T - cold_side.upper.T == ΔT_min) && (hot_side.lower.T - cold_side.lower.T == ΔT_min) || error("Inconsistent ΔT_min")
+        for (k,v) in hot_side.streams
+            v isa Union{HotStream, SimpleHotUtility} || error("Non-hot stream assigned to hot_side of transshipment interval.")
+        end
+        for (k,v) in cold_side.streams
+            v isa Union{ColdStream, SimpleColdUtility} || error("Non-cold stream assigned to cold_side of transshipment interval.")
+        end
+        new(index, hot_side, cold_side, ΔT_min)
+    end
+end
+
+Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(interval_tship.index)")
+
 
 #=
 """
@@ -224,15 +280,7 @@ function total_stream_heat_in(interval::TemperatureInterval)
 end
 =#
 
-function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
-    if sym == :total_stream_heat_in
-        return sum(values(interval.hot_streams_contribs))
-    elseif sym == :total_stream_heat_out
-        return sum(values(interval.cold_streams_contribs))
-    else # fallback to getfield
-        return getfield(interval, sym)
-    end
-end
+
 
 """
 $(TYPEDSIGNATURES)
@@ -249,33 +297,4 @@ function get_contribution(stream::String, interval::TemperatureInterval,)
     return 0.0
 end
 =#
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
 
-Holds two vectors of `TemperatureInterval`s one for the hot side, one for the cold side.
-.
-"""
-mutable struct TransshipmentIntervals{R <: Real}
-    hot_side::Vector{TemperatureInterval{R}}
-    cold_side::Vector{TemperatureInterval{R}}
-    ΔT_min::Float64
-    @add_kwonly function TransshipmentIntervals{R}(hot_side, cold_side, ΔT_min = 10.0) where {R}
-        # Sanity checks
-        length(hot_side) == length(cold_side) || error("Inconsistent lengths")
-        for i in 1:length(hot_side)
-            (hot_side[i].upper.T - cold_side[i].upper.T == ΔT_min) && (hot_side[i].lower.T - cold_side[i].lower.T == ΔT_min) || error("Inconsistent ΔT_min")
-            for (k,v) in hot_side[i].streams
-                v isa Union{HotStream, SimpleHotUtility} || error("Non-hot stream assigned to hot_side of transshipment interval.")
-            end
-            for (k,v) in cold_side[i].streams
-                v isa Union{ColdStream, SimpleColdUtility} || error("Non-cold stream assigned to cold_side of transshipment interval.")
-            end
-        end
-        new(hot_side, cold_side, ΔT_min)
-    end
-end
-
-
-# Define necessary functions to iterate over `TransshipmentIntervals`
-Base.length(coll::TransshipmentIntervals) = length(coll.hot_side)

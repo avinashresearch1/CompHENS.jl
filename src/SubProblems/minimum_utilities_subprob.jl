@@ -9,24 +9,24 @@ Returns:
 """
 function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
     verbose && @info "Solving the minimum utilities subproblem"
-    intervals = CompHENS.generate_heat_cascade_intervals(prob)
+    intervals = generate_transshipment_intervals(prob)
     model = Model()
     HU_set = keys(prob.hot_utilities_dict) 
     CU_set = keys(prob.cold_utilities_dict)
-
+    
     @variable(model, 0 <= Q_in[HU_set])
     @variable(model, 0 <= Q_out[CU_set])
     @variable(model, 0 <= R[intervals]) # Notation: R[interval] is the residual heat exiting a given interval
     JuMP.fix(R[last(intervals)], 0.0; force = true)
-
+    
     # First interval: Entering == Leaving
     @constraint(model, 
-    sum(Q_in[hu] for hu in keys(first(intervals).hot_utilities_contribs)) + first(intervals).total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_utilities_contribs)) + first(intervals).total_stream_heat_out)
-
+    sum(Q_in[hu] for hu in keys(first(intervals).hot_side.hot_utils)) + first(intervals).hot_side.total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_side.cold_utils)) + first(intervals).cold_side.total_stream_heat_out)
+    
     # Remaining intervals
     @constraint(model, [k in 2:length(intervals)],
-    R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_utilities_contribs)) + intervals[k].total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_utilities_contribs)) + intervals[k].total_stream_heat_out)
-
+    R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_side.hot_utils)) + intervals[k].hot_side.total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_side.cold_utils)) + intervals[k].cold_side.total_stream_heat_out)
+    
     # Objective: TODO: Add utility costs.
     @objective(model, Min, sum(Q_in) + sum(Q_out))
     set_optimizer(model, optimizer)
@@ -54,7 +54,7 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limi
 
     for interval in setdiff(intervals, [last(intervals)])
         if value.(R[interval]) <= smallest_value
-            push!(pinch_points, (interval.T_hot_lower, interval.T_cold_lower))
+            push!(pinch_points, (interval.hot_side.lower.T, interval.cold_side.lower.T))
         end
     end
     prob.results_dict[:pinch_points] = pinch_points

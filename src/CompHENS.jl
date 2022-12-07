@@ -71,7 +71,7 @@ export point
 include("Intervals/curve_points.jl")
 
 # Holds all kinds of temperature intervals
-export TemperatureInterval, TransshipmentIntervals, 
+export TemperatureInterval, TransshipmentInterval, 
 generate_transshipment_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve, 
 get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!
 include("Intervals/temperature_intervals.jl")

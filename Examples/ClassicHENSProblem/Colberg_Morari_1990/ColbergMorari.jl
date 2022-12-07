@@ -13,49 +13,6 @@ file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
 
 # 4. Subdivide into intervals and attain the hot and cold composite curves.
-ΔT_min = 20.0
-hot_side_temps, cold_side_temps = Float64[], Float64[]
-for (k,v) in prob.hot_streams_dict
-    push!(hot_side_temps, v.T_in, v.T_out)
-end
-
-for (k,v) in prob.cold_streams_dict
-    push!(hot_side_temps, v.T_in + ΔT_min, v.T_out + ΔT_min)
-end
-
-for (k,v) in prob.hot_streams_dict
-    push!(cold_side_temps, v.T_in - ΔT_min, v.T_out - ΔT_min)
-end
-
-for (k,v) in prob.cold_streams_dict
-    push!(cold_side_temps, v.T_in, v.T_out)
-end
-
-hot_side = initialize_temperature_intervals(hot_side_temps)
-cold_side = initialize_temperature_intervals(cold_side_temps)
-
-for interval in hot_side
-    for stream in values(prob.hot_streams_dict)
-        assign_stream!(interval, stream)
-    end
-end
-
-for interval in cold_side
-    for stream in values(prob.cold_streams_dict)
-        assign_stream!(interval, stream)
-    end
-end
-
-for utility in values(prob.hot_utilities_dict)
-    assign_utility!(hot_side, utility)
-end
-
-for utility in values(prob.cold_utilities_dict)
-    assign_utility!(cold_side, utility)
-end
-
-intervals_tship = TransshipmentIntervals{Float64}(hot_side, cold_side, ΔT_min)
-
 
 #=
 hot_ref_enthalpy, cold_ref_enthalpy = 0.0, 172.596
@@ -67,7 +24,43 @@ plt = CompHENS.plot_composite_curve(sorted_intervals; hot_ref_enthalpy, cold_ref
 ylims!((300,700))
 =#
 
+time_limit = 60.0
+presolve = true
+optimizer = HiGHS.Optimizer
+verbose = true
+
 # 5. Solve subproblem 1: minimum utilities. 
+intervals = generate_transshipment_intervals(prob)
+model = Model()
+HU_set = keys(prob.hot_utilities_dict) 
+CU_set = keys(prob.cold_utilities_dict)
+
+@variable(model, 0 <= Q_in[HU_set])
+@variable(model, 0 <= Q_out[CU_set])
+@variable(model, 0 <= R[intervals]) # Notation: R[interval] is the residual heat exiting a given interval
+JuMP.fix(R[last(intervals)], 0.0; force = true)
+
+# First interval: Entering == Leaving
+@constraint(model, 
+sum(Q_in[hu] for hu in keys(first(intervals).hot_side.hot_utils)) + first(intervals).hot_side.total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_side.cold_utils)) + first(intervals).cold_side.total_stream_heat_out)
+
+# Remaining intervals
+@constraint(model, [k in 2:length(intervals)],
+R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_side.hot_utils)) + intervals[k].hot_side.total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_side.cold_utils)) + intervals[k].cold_side.total_stream_heat_out)
+
+# Objective: TODO: Add utility costs.
+@objective(model, Min, sum(Q_in) + sum(Q_out))
+set_optimizer(model, optimizer)
+!verbose && set_silent(model)
+presolve && set_optimizer_attribute(model, "presolve", "on")
+set_optimizer_attribute(model, "time_limit", time_limit)
+optimize!(model)
+if verbose
+    @show termination_status(model)
+    @show primal_status(model)
+    @show dual_status(model)
+end
+
 
 # Using formulation of Prob. 16.5 Biegler, Grossmann, Westerberg book. Pg. 533.
 
