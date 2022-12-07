@@ -66,9 +66,13 @@ include("Streams/streams.jl")
 export ClassicHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 
+# Holds structures for processing the composite curve e.g., kink points
+export point
+include("Intervals/curve_points.jl")
+
 # Holds all kinds of temperature intervals
 export TemperatureInterval, generate_heat_cascade_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve, get_contribution
-include("TemperatureIntervals/temperature_intervals.jl")
+include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!
 include("SubProblems/minimum_utilities_subprob.jl")

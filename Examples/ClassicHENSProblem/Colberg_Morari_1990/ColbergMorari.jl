@@ -13,9 +13,10 @@ file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
 
 # 4. Subdivide into intervals and attain the hot and cold composite curves.
-#=
-intervals = CompHENS.generate_heat_cascade_intervals(prob, 0.0)
 
+intervals = CompHENS.generate_heat_cascade_intervals(prob, 20.0)
+CompHENS.print_full(intervals)
+#=
 hot_ref_enthalpy, cold_ref_enthalpy = 0.0, 172.596
 sorted_intervals = intervals
 ylabel = "T [°C or K]"

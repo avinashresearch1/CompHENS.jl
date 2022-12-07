@@ -5,30 +5,23 @@ $(TYPEDEF)
 $(TYPEDFIELDS)
 
 Holds a single temperature interval. Each temperature interval is defined by a box containing the upper and lower temperatures on the hot and cold sides. The `*_contribs` contain only the streams that participate in the interval.
-
-QN: Make this immutable?
 """
-mutable struct TemperatureInterval
+mutable struct TemperatureInterval{R}
     index::Int64
-    T_hot_upper::Float64
-    T_hot_lower::Float64
-    T_cold_upper::Float64
-    T_cold_lower::Float64
-    """The residual heat supplied to the interval by the adjacent hotter `TemperatureInterval`. Defined after solving optimization problem."""
-    R_in::Float64
-    """The residual heat supplied from the interval to the adjacent colder `TemperatureInterval`. Defined after solving optimization problem."""
-    R_out::Float64
+    T_hot_upper::point{R}
+    T_hot_lower::point{R}
+    T_cold_upper::point{R}
+    T_cold_lower::point{R}
     """The heat contribution of the hot stream to the interval"""
-    hot_streams_contribs::Dict{String, Float64}
+    hot_streams_contribs::Dict{String, R}
     """The heat removed by cold stream from the interval"""
-    cold_streams_contribs::Dict{String, Float64}
+    cold_streams_contribs::Dict{String, R}
     """Hot utility entering system at interval. Note: Each HU can only enter at one interval"""
-    hot_utilities_contribs::Dict{String, Float64}
+    hot_utilities_contribs::Dict{String, R}
     """Cold utility entering system at interval. Note: Each CU can only enter at one interval"""
-    cold_utilities_contribs::Dict{String, Float64}
-    @add_kwonly function TemperatureInterval(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in = 0.0, R_out = 0.0, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}())
-        R_in >= 0.0 && R_out >= 0.0 || error("Residuals to temperature interval negative")
-        new(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
+    cold_utilities_contribs::Dict{String, R}
+    @add_kwonly function TemperatureInterval{R}(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs = Dict{String, Float64}(), cold_streams_contribs = Dict{String, Float64}(), hot_utilities_contribs = Dict{String, Float64}(), cold_utilities_contribs = Dict{String, Float64}()) where {R}
+        new(index, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs)
     end
 end
 
@@ -41,7 +34,13 @@ function Base.show(io::IO, intervals::Vector{TemperatureInterval})
     end
 end
 =#
-
+#=
+function print_full(intervals::Vector{TemperatureInterval})
+    for interval in intervals
+        println("itv_", interval.index, ":  Hot side: [", interval.T_hot_upper.T, ", ", interval.T_hot_lower.T, "]  Cold side: [", interval.T_cold_upper.T, ", ", interval.T_cold_lower.T, "]")
+    end
+end
+=#
 
 
 """
@@ -112,8 +111,7 @@ function generate_heat_cascade_intervals(prob::ClassicHENSProblem, ΔT_min = pro
             end
         end
 
-        R_in, R_out = 0.0, 0.0 # Place holders. To be attained from optimizer.
-        push!(intervals, TemperatureInterval(i, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, R_in, R_out, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs))
+        push!(intervals, TemperatureInterval(i, T_hot_upper, T_hot_lower, T_cold_upper, T_cold_lower, hot_streams_contribs, cold_streams_contribs, hot_utilities_contribs, cold_utilities_contribs))
     end
     return intervals
 end
