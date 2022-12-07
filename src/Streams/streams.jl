@@ -59,12 +59,14 @@ mutable struct SimpleHotUtility <: AbstractUtility
     T_in::Float64  
     T_out::Float64   
     h::Float64 
+    """Duty initialized to `Inf`. Fixed during solution."""
+    Q::Float64 
     add_user_data::Dict{String, Any}
     calc::Dict{String, Float64}
-    @add_kwonly function SimpleHotUtility(name, T_in, T_out, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+    @add_kwonly function SimpleHotUtility(name, T_in, T_out, h, Q = Inf, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
         T_in isa Real && T_out isa Real && h isa Real || error("Input data contains a non-real number")
         h > smallest_value || error("h value infeasible")
-        new(name, Float64(T_in), Float64(T_out), Float64(h), add_user_data, calc)
+        new(name, Float64(T_in), Float64(T_out), Float64(h), Q, add_user_data, calc)
     end
 end
 
@@ -78,12 +80,14 @@ mutable struct SimpleColdUtility <: AbstractUtility
     name::String
     T_in::Float64 
     T_out::Float64   
-    h::Float64 #
+    h::Float64
+    """Duty initialized to `Inf`. Fixed during solution."""
+    Q::Float64 
     add_user_data::Dict{String, Any}
     calc::Dict{String, Float64}
-    @add_kwonly function SimpleColdUtility(name, T_in, T_out, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
+    @add_kwonly function SimpleColdUtility(name, T_in, T_out, h, Q = Inf, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
         T_in isa Real && T_out isa Real && h isa Real || error("Input data contains a non-real number")
         h > smallest_value || error("h value infeasible")
-        new(name, Float64(T_in), Float64(T_out), Float64(h), add_user_data, calc)
+        new(name, Float64(T_in), Float64(T_out), Float64(h), Q, add_user_data, calc)
     end 
 end
