@@ -110,23 +110,70 @@ Each cold utility is assigned to the coldest interval that can reject heat to it
 Note: `sorted_intervals` should be a vector of the entire vector of `TemperatureInterval`s sorted from hot to cold.
 """
 function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, hot_utility::SimpleHotUtility)
-    for interval in sorted_intervals # Has to be higher than upper?
-        if hot_utility.T_out >= interval.upper.T
+    for interval in sorted_intervals # Has to be higher than upper? [POTENTIAL BUG]
+        if hot_utility.T_out >= interval.lower.T
             push!(interval.streams, hot_utility.name => hot_utility)
             push!(interval.contributions, hot_utility.name => hot_utility.Q)
+            break
         end
-        break
     end
 end
 
 function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, cold_utility::SimpleColdUtility)
     for interval in reverse(sorted_intervals) # Get first interval that is hotter than cu.
-        if interval.lower.T >= cold_utility.T_in
+        if interval.upper.T >= cold_utility.T_out
             push!(interval.streams, cold_utility.name => cold_utility)
             push!(interval.contributions, cold_utility.name => cold_utility.Q)
+            break
         end
-        break
     end
+end
+
+"""
+$(TYPEDEF)
+$(TYPEDFIELDS)
+
+Holds two vectors of `TemperatureInterval`s one for the hot side, one for the cold side.
+.
+"""
+mutable struct TransshipmentInterval{R <: Real}
+    index::Int64
+    hot_side::TemperatureInterval{R}
+    cold_side::TemperatureInterval{R}
+    ΔT_min::Float64
+    @add_kwonly function TransshipmentInterval{R}(hot_side, cold_side, ΔT_min = 10.0) where {R}
+        index = hot_side.index
+        index == cold_side.index || error("Mismatched hot/cold indexes")
+        (hot_side.upper.T - cold_side.upper.T == ΔT_min) && (hot_side.lower.T - cold_side.lower.T == ΔT_min) || error("Inconsistent ΔT_min")
+        for (k,v) in hot_side.streams
+            v isa Union{HotStream, SimpleHotUtility} || error("Non-hot stream assigned to hot_side of transshipment interval.")
+        end
+        for (k,v) in cold_side.streams
+            v isa Union{ColdStream, SimpleColdUtility} || error("Non-cold stream assigned to cold_side of transshipment interval.")
+        end
+        new(index, hot_side, cold_side, ΔT_min)
+    end
+end
+
+Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(interval_tship.index)")
+
+function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
+    for interval in intervals
+        println("itv_", interval.index, " H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
+    end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Gets the contribution of a stream to the temperature interval.
+Returns 0.0 if no contribution.
+"""
+function get_contribution(stream::String, interval::TemperatureInterval)
+    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
+    # TODO: Potential bug returning 0.0 for nonexistent streams.].
+    stream in keys(interval.contributions) && return interval.contributions[stream]
+    return 0.0
 end
 
 """
@@ -184,60 +231,26 @@ function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = pr
     return intervals_tship
 end
 
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
-
-Holds two vectors of `TemperatureInterval`s one for the hot side, one for the cold side.
-.
-"""
-mutable struct TransshipmentInterval{R <: Real}
-    index::Int64
-    hot_side::TemperatureInterval{R}
-    cold_side::TemperatureInterval{R}
-    ΔT_min::Float64
-    @add_kwonly function TransshipmentInterval{R}(hot_side, cold_side, ΔT_min = 10.0) where {R}
-        index = hot_side.index
-        index == cold_side.index || error("Mismatched hot/cold indexes")
-        (hot_side.upper.T - cold_side.upper.T == ΔT_min) && (hot_side.lower.T - cold_side.lower.T == ΔT_min) || error("Inconsistent ΔT_min")
-        for (k,v) in hot_side.streams
-            v isa Union{HotStream, SimpleHotUtility} || error("Non-hot stream assigned to hot_side of transshipment interval.")
-        end
-        for (k,v) in cold_side.streams
-            v isa Union{ColdStream, SimpleColdUtility} || error("Non-cold stream assigned to cold_side of transshipment interval.")
-        end
-        new(index, hot_side, cold_side, ΔT_min)
-    end
-end
-
-Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(interval_tship.index)")
-
-function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
-    for interval in intervals
-        println("itv_", interval.index, " H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
-    end
-end
-
+#=
 """
 $(TYPEDSIGNATURES)
 
-Gets the contribution of a stream to the temperature interval.
-Returns 0.0 if no contribution.
+Get the primary temperatures for the hot and cold side composite curves.
+Returns: (hot_cc, cold_cc) where both are ::Vector{TemperatureInterval} with both the `T` and `H` value for `interval.upper` and `interval.lower` fixed.
+Note: If the amount of utility consumption in `prob` is `Inf` (e.g., prior to solution of the Minimum Utilities subproblem), then the corresponding utility stream is ignored.
 """
-function get_contribution(stream::String, interval::TemperatureInterval)
-    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
-    # TODO: Potential bug returning 0.0 for nonexistent streams.].
-    stream in keys(interval.contributions) && return interval.contributions[stream]
-    return 0.0
-end
+function get_primary_temperatures(prob::ClassicHENSProblem)
+    hot_temps, cold_temps = Float64[], Float64[]
 
-#=
 """
 $(TYPEDSIGNATURES)
 
 Plots the hot-side composite curve. Assume intervals are already sorted e.g., attained from the `generate_heat_cascade_intervals` function. 
 """
-function plot_hot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", verbose = false)
+function plot_hot_composite_curve(prob::ClassicHENSProblem; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", verbose = false)
+    temperatures = Float64[]
+    for 
+    sorted_intervals = initialize_temperature_intervals([prob.hot_streams_dict])
     T_vals = Float64[last(sorted_intervals).T_hot_lower]
     Q_vals = Float64[ref_enthalpy]
     for interval in reverse(sorted_intervals)
