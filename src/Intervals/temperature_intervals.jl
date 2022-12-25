@@ -46,9 +46,39 @@ function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
         return sum(values(interval.hot_streams))
     elseif sym == :total_stream_heat_out
         return sum(values(interval.cold_streams))
+    elseif sym == :total_heat_in # Both stream and utility heat in
+        return sum(values(interval.hot_streams)) + sum(values(interval.hot_utils))
+    elseif sym == :total_heat_out # Both stream and utility heat out
+        return sum(values(interval.cold_streams)) + sum(values(interval.cold_utils))
     else # fallback to getfield
         return getfield(interval, sym)
     end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Gets the contribution of first argument to the temperature interval.
+Returns 0.0 if no contribution.
+"""
+function get_contribution(stream::String, interval::TemperatureInterval)
+    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
+    # TODO: Potential bug returning 0.0 for nonexistent streams.].
+    stream in keys(interval.contributions) && return interval.contributions[stream]
+    return 0.0
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Get contribution of `stream_type` to interval. `stream_type` is a vector of stream types. 
+"""
+function get_contribution(stream_type::Vector{DataType}, interval::TemperatureInterval)
+    streams_dict = filter(interval.contributions) do (k,v)
+        typeof(interval.streams[k]) ∈ stream_type
+    end
+    !isempty(streams_dict) && return sum(values(streams_dict))
+    return 0.0
 end
 
 function print_full(intervals::Vector{TemperatureInterval}; digits = 1)
@@ -108,8 +138,10 @@ Assigns utility based on cheapest utility principle.
 Thus each hot utility is assigned only to the hottest interval that can accept heat from it.
 Each cold utility is assigned to the coldest interval that can reject heat to it.
 Note: `sorted_intervals` should be a vector of the entire vector of `TemperatureInterval`s sorted from hot to cold.
+- `drop_infinite` does not assign the `hot/cold_utility` if `hot/cold_utility.Q == Inf`
 """
-function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, hot_utility::SimpleHotUtility)
+function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, hot_utility::SimpleHotUtility; drop_infinite = false)
+    drop_infinite && hot_utility.Q == Inf && return
     for interval in sorted_intervals # Has to be higher than upper? [POTENTIAL BUG]
         if hot_utility.T_out >= interval.lower.T
             push!(interval.streams, hot_utility.name => hot_utility)
@@ -119,7 +151,8 @@ function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, hot_util
     end
 end
 
-function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, cold_utility::SimpleColdUtility)
+function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, cold_utility::SimpleColdUtility; drop_infinite = false)
+    drop_infinite && cold_utility.Q == Inf && return
     for interval in reverse(sorted_intervals) # Get first interval that is hotter than cu.
         if interval.upper.T >= cold_utility.T_out
             push!(interval.streams, cold_utility.name => cold_utility)
@@ -128,6 +161,35 @@ function assign_utility!(sorted_intervals::Vector{TemperatureInterval}, cold_uti
         end
     end
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+Assigns all streams and utilities specified in `prob` to the intervals `hot_sorted_intervals` and cold_sorted_intervals as appropriate. Calls `assign_utility!` and `assign_stream!` 
+- `drop_infinite` does not assign the `hot/cold_utility` if `hot/cold_utility.Q == Inf`
+"""
+function assign_all_streams_and_utilities!(prob::ClassicHENSProblem, hot_sorted_intervals::Vector{TemperatureInterval}, cold_sorted_intervals::Vector{TemperatureInterval}; drop_infinite = false)
+    for interval in hot_sorted_intervals
+        for stream in values(prob.hot_streams_dict)
+            assign_stream!(interval, stream)
+        end
+    end
+    
+    for interval in cold_sorted_intervals
+        for stream in values(prob.cold_streams_dict)
+            assign_stream!(interval, stream)
+        end
+    end
+    
+    for utility in values(prob.hot_utilities_dict)
+        assign_utility!(hot_sorted_intervals, utility; drop_infinite = drop_infinite)
+    end
+    
+    for utility in values(prob.cold_utilities_dict)
+        assign_utility!(cold_sorted_intervals, utility; drop_infinite = drop_infinite)
+    end
+end
+
 
 """
 $(TYPEDEF)
@@ -163,18 +225,7 @@ function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
     end
 end
 
-"""
-$(TYPEDSIGNATURES)
 
-Gets the contribution of a stream to the temperature interval.
-Returns 0.0 if no contribution.
-"""
-function get_contribution(stream::String, interval::TemperatureInterval)
-    # [QN: Any advantages of multiple dispatch here? Or just use basic string comparison?
-    # TODO: Potential bug returning 0.0 for nonexistent streams.].
-    stream in keys(interval.contributions) && return interval.contributions[stream]
-    return 0.0
-end
 
 """
 $(TYPEDSIGNATURES)
@@ -182,6 +233,7 @@ $(TYPEDSIGNATURES)
 Generates the double-sided intervals necessary for a transshipment problem (as visualized in a heat cascade diagram).
 """
 function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = prob.ΔT_min)
+    # Getting the hot and cold temps are tailored subproblem type. 
     hot_side_temps, cold_side_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
         push!(hot_side_temps, v.T_in, v.T_out)
@@ -203,27 +255,8 @@ function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = pr
     cold_side = initialize_temperature_intervals(cold_side_temps)
     
     length(hot_side) == length(cold_side) || error("Inconsistent lengths")
-    
-    for interval in hot_side
-        for stream in values(prob.hot_streams_dict)
-            assign_stream!(interval, stream)
-        end
-    end
-    
-    for interval in cold_side
-        for stream in values(prob.cold_streams_dict)
-            assign_stream!(interval, stream)
-        end
-    end
-    
-    for utility in values(prob.hot_utilities_dict)
-        assign_utility!(hot_side, utility)
-    end
-    
-    for utility in values(prob.cold_utilities_dict)
-        assign_utility!(cold_side, utility)
-    end
-    
+
+    assign_all_streams_and_utilities!(prob, hot_side, cold_side; drop_infinite = false)
     intervals_tship = TransshipmentInterval[]
     for i in 1:length(hot_side)
         push!(intervals_tship, TransshipmentInterval{Float64}(hot_side[i], cold_side[i], ΔT_min))
@@ -231,17 +264,85 @@ function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = pr
     return intervals_tship
 end
 
-#=
 """
 $(TYPEDSIGNATURES)
 
 Get the primary temperatures for the hot and cold side composite curves.
-Returns: (hot_cc, cold_cc) where both are ::Vector{TemperatureInterval} with both the `T` and `H` value for `interval.upper` and `interval.lower` fixed.
+Returns: (; hot_cc, cold_cc) where both are ::Vector{TemperatureInterval} with both the `T` and `H` value for `interval.upper` and `interval.lower` fixed.
 Note: If the amount of utility consumption in `prob` is `Inf` (e.g., prior to solution of the Minimum Utilities subproblem), then the corresponding utility stream is ignored.
 """
-function get_primary_temperatures(prob::ClassicHENSProblem)
+function get_primary_temperatures(prob::ClassicHENSProblem; verbose = false)
+    # Getting the hot and cold temps are tailored subproblem type. 
     hot_temps, cold_temps = Float64[], Float64[]
+    for (k,v) in prob.hot_streams_dict
+        push!(hot_temps, v.T_in, v.T_out)
+    end
+    
+    for (k,v) in prob.cold_streams_dict
+        push!(cold_temps, v.T_in, v.T_out)
+    end
+    
+    for (k,v) in prob.hot_utilities_dict
+        if v.Q != Inf
+            push!(hot_temps, v.T_in, v.T_out)
+        end
+    end
+    
+    for (k,v) in prob.cold_utilities_dict
+        if v.Q != Inf
+            push!(cold_temps, v.T_in, v.T_out)
+        end
+    end
 
+    hot_cc = initialize_temperature_intervals(hot_temps)
+    cold_cc = initialize_temperature_intervals(cold_temps)
+
+    verbose && "Hot intervals: $(length(hot_cc)), Cold intervals $(length(cold_cc)) \n"
+
+    assign_all_streams_and_utilities!(prob, hot_cc, cold_cc; drop_infinite = true)
+    calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
+    calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
+    return (; hot_cc, cold_cc)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+For a given sorted set of intervals `sorted_intervals`, populates the `upper.H` and `lower.H` values starting from `ref_enthalpy = 0.0`.
+Only the contributions of streams of type listed in stream_type are counted.
+"""
+function calculate_enthalpies!(stream_type::Vector{DataType}, sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0)
+    total_sum = ref_enthalpy
+    for interval in reverse(sorted_intervals)
+        interval.lower.H = total_sum
+        total_sum += get_contribution(stream_type, interval)
+        interval.upper.H = total_sum
+    end
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Plots a single composite curve given `sorted_intervals`
+"""
+function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; verbose = false, color = :blue, shape = :circle, ylabel = "T [°C or K]", xlabel = "Heat duty Q", kwargs...)
+    T_vals, H_vals = [], []
+    for interval in reverse(sorted_intervals)
+        push!(T_vals, interval.lower.T, interval.upper.T)
+        push!(H_vals, interval.lower.H, interval.upper.H)
+    end
+    verbose && println("T_vals: $(T_vals), H_vals = $(H_vals)")
+    plot(H_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = color, shape = shape, legend = false, kwargs...)
+end
+
+
+
+
+
+
+
+
+    #=
 """
 $(TYPEDSIGNATURES)
 

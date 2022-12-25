@@ -1,6 +1,6 @@
 # Workflow using XLSX input:
 # 1. Import necessary packages:
-using CompHENS
+@time using CompHENS
 using Plots
 using JuMP
 using HiGHS
@@ -35,51 +35,11 @@ solve_minimum_utilities_subproblem!(prob)
 solve_minimum_units_subproblem!(prob)
 @test prob.min_units == 8
 
-#get_primary_temperatures(prob)
-# TODO: Further refactor the extraction of temperatures and assignment of streams to intervals using multiple dispatch. Worth it?
-hot_temps, cold_temps = Float64[], Float64[]
-for (k,v) in prob.hot_streams_dict
-    push!(hot_temps, v.T_in, v.T_out)
-end
+# 7. 
+pr_temps = CompHENS.get_primary_temperatures(prob)
+print_full(pr_temps.hot_cc)
+CompHENS.calculate_enthalpies!([HotStream, SimpleHotUtility], pr_temps.hot_cc)
+CompHENS.calculate_enthalpies!([ColdStream, SimpleColdUtility], pr_temps.cold_cc)
 
-for (k,v) in prob.cold_streams_dict
-    push!(cold_temps, v.T_in, v.T_out)
-end
-
-for (k,v) in prob.hot_utilities_dict
-    if v.Q != Inf
-        push!(hot_temps, v.T_in, v.T_out)
-    end
-end
-
-for (k,v) in prob.cold_utilities_dict
-    if v.Q != Inf
-        push!(cold_temps, v.T_in, v.T_out)
-    end
-end
-
-hot_cc = initialize_temperature_intervals(hot_temps)
-cold_cc = initialize_temperature_intervals(cold_temps)
-
-for interval in hot_cc
-    for stream in values(prob.hot_streams_dict)
-        assign_stream!(interval, stream)
-    end
-end
-
-for interval in cold_cc
-    for stream in values(prob.cold_streams_dict)
-        assign_stream!(interval, stream)
-    end
-end
-
-for utility in values(prob.hot_utilities_dict)
-    assign_utility!(hot_cc, utility)
-end
-
-for utility in values(prob.cold_utilities_dict)
-    assign_utility!(cold_cc, utility)
-end
-
-@run assign_utility!(hot_cc, prob.hot_utilities_dict["ST"])
-
+plt1 = plot_composite_curve(pr_temps.hot_cc; verbose = true, color = :red)
+plt2 = plot_composite_curve(pr_temps.cold_cc; color = :blue)
