@@ -10,8 +10,8 @@ Usually this single-sided `TemperatureInterval` is sufficient for transportation
 """
 mutable struct TemperatureInterval{R <: Real}
     index::Int64
-    upper::point{R}
-    lower::point{R}
+    upper::Point{R}
+    lower::Point{R}
     """Participating streams in interval"""
     streams::Dict{String, Union{HotStream, ColdStream, SimpleHotUtility, SimpleColdUtility}}
     """Contributions of each of the participating streams. Hot adding, Cold removing heat."""
@@ -103,8 +103,8 @@ function initialize_temperature_intervals(temp_vec::Vector)
     sort!(unique!(temp_vec), rev = true)
     intervals = TemperatureInterval[]
     for i in 1:length(temp_vec)-1
-        upper = point{Float64}(T = temp_vec[i])
-        lower = point{Float64}(T = temp_vec[i+1])
+        upper = Point{Float64}(T = temp_vec[i])
+        lower = Point{Float64}(T = temp_vec[i+1])
         push!(intervals, TemperatureInterval{Float64}(index = i, upper = upper, lower = lower))
     end
     return intervals
@@ -233,7 +233,7 @@ $(TYPEDSIGNATURES)
 Generates the double-sided intervals necessary for a transshipment problem (as visualized in a heat cascade diagram).
 """
 function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min = prob.ΔT_min)
-    # Getting the hot and cold temps are tailored subproblem type. 
+    # Getting the hot and cold temps are tailored for each subproblem type. 
     hot_side_temps, cold_side_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
         push!(hot_side_temps, v.T_in, v.T_out)
@@ -268,11 +268,12 @@ end
 $(TYPEDSIGNATURES)
 
 Get the primary temperatures for the hot and cold side composite curves.
-Returns: (; hot_cc, cold_cc) where both are ::Vector{TemperatureInterval} with both the `T` and `H` value for `interval.upper` and `interval.lower` fixed.
+Adds `prob.results_dict[primary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)`. `hot_cc` and `cold_cc` are ::Vector{TemperatureInterval} with both the `T` and `H` value for `interval.upper` and `interval.lower` fixed.
+`hot_temps` and `cold_temps` gives the vector of primary temperatures only.
 Note: If the amount of utility consumption in `prob` is `Inf` (e.g., prior to solution of the Minimum Utilities subproblem), then the corresponding utility stream is ignored.
 """
-function get_primary_temperatures(prob::ClassicHENSProblem; verbose = false)
-    # Getting the hot and cold temps are tailored subproblem type. 
+function get_primary_temperatures!(prob::ClassicHENSProblem; verbose = false)
+    # Getting the hot and cold temps are tailored for each subproblem type. 
     hot_temps, cold_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
         push!(hot_temps, v.T_in, v.T_out)
@@ -302,7 +303,10 @@ function get_primary_temperatures(prob::ClassicHENSProblem; verbose = false)
     assign_all_streams_and_utilities!(prob, hot_cc, cold_cc; drop_infinite = true)
     calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
     calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
-    return (; hot_cc, cold_cc)
+
+    isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Primary temperature composite curve not balanced")
+    prob.results_dict[:primary_temperatures] =  (; hot_cc, cold_cc, hot_temps, cold_temps)
+    return 
 end
 
 """
@@ -335,6 +339,170 @@ function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ver
     plot(H_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = color, shape = shape, legend = false, kwargs...)
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Get the secondary temperatures for the hot and cold side composite curves.
+Loads `prob.results_dict[:primary_temperatures]` if available.
+Adds `prob.results_dict[:secondary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)`
+"""
+function get_secondary_temperatures!(prob::ClassicHENSProblem; verbose = false)
+    hot_temps, merged_hot_temps, cold_temps, merged_cold_temps = Float64[], Float64[], Float64[], Float64[]
+    if !haskey(prob.results_dict, :primary_temperatures)
+        get_primary_temperatures!(prob)
+    end
+
+    hot_cc = prob.results_dict[:primary_temperatures].hot_cc
+    cold_cc = prob.results_dict[:primary_temperatures].cold_cc
+
+    # Secondary temps
+    for cold_interval in cold_cc
+        lower_match = get_enthalpy_match(cold_interval.lower, hot_cc)
+        upper_match = get_enthalpy_match(cold_interval.upper, hot_cc)
+        push!(hot_temps, lower_match.T, upper_match.T)
+    end
+
+    for hot_interval in hot_cc
+        lower_match = get_enthalpy_match(hot_interval.lower, cold_cc)
+        upper_match = get_enthalpy_match(hot_interval.upper, cold_cc)
+        push!(cold_temps, lower_match.T, upper_match.T)
+    end
+
+    sort!(unique!(hot_temps), rev = true)
+    sort!(unique!(cold_temps), rev = true)
+
+    merged_hot_temps = vcat(prob.results_dict[:primary_temperatures].hot_temps, hot_temps) # Primary and secondary
+    merged_cold_temps = vcat(prob.results_dict[:primary_temperatures].cold_temps, cold_temps)
+
+    hot_cc = initialize_temperature_intervals(merged_hot_temps)
+    cold_cc = initialize_temperature_intervals(merged_cold_temps)
+
+    verbose && "Hot intervals: $(length(hot_cc)), Cold intervals $(length(cold_cc)) \n"
+
+    assign_all_streams_and_utilities!(prob, hot_cc, cold_cc; drop_infinite = true)
+    calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
+    calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
+
+    isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Secondary temperature composite curve not balanced")
+
+    prob.results_dict[:secondary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)
+    return
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Given a `point::Point`, returns the point `match_point::Point` that has the same enthalpy value interpolated from the `sorted_intervals` vector.
+"""
+function get_enthalpy_match(point::Point, sorted_intervals::Vector{TemperatureInterval}; verbose = false)
+    verbose && println("Getting match for point $(point)")
+    for interval in sorted_intervals # Can implement binary search here.
+        if point.H >= floor(interval.lower.H) && point.H <= ceil(interval.upper.H) # Use floor and ceil to avoid precision issues. 
+            match_T = interval.lower.T + (interval.upper.T - interval.lower.T)*(point.H - interval.lower.H)/(interval.upper.H - interval.lower.H)
+            verbose && println("Match T: $(match_T), Match interval: T: [$(interval.lower.T), $(interval.upper.T)], H: [$(interval.lower.H), $(interval.upper.H)]")
+            return Point{Float64}(T = match_T, H = point.H)
+        end
+    end
+    error("Match point for $(point) not found")
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Get the tertiary temperatures for the hot and cold side composite curves for a given `prob`.
+Args:
+- EMAT: Specified Exchanger Minimum Approach Temperature.
+Loads `prob.results_dict[:primary_temperatures]` and `prob.results_dict[:secondary_temperatures]` if available.   
+Adds `prob.results_dict[:tertiary_temperatures] = (; hot_cc, cold_cc)`
+"""
+function get_tertiary_temperatures!(prob::ClassicHENSProblem, EMAT; verbose = false)
+    # Load secondary temperatures.
+    hot_temps, merged_hot_temps, cold_temps, merged_cold_temps = Float64[], Float64[], Float64[], Float64[]
+    if !haskey(prob.results_dict, :secondary_temperatures)
+        get_secondary_temperatures!(prob)
+    end
+
+    # Get tertiary temperatures:
+    hot_targets, cold_targets = Float64[], Float64[]
+    for hot_stream in values(merge(prob.hot_streams_dict, prob.hot_utilities_dict))
+        push!(hot_targets, hot_stream.T_out)
+    end
+    for cold_stream in values(merge(prob.cold_streams_dict, prob.cold_utilities_dict))
+        push!(cold_targets, cold_stream.T_out)
+    end
+
+    coldest_hot_target = minimum(hot_targets)
+    hottest_cold_target = maximum(cold_targets)
+
+    for cold_stream in values(merge(prob.cold_streams_dict, prob.cold_utilities_dict))
+        T_tertiary = cold_stream.T_in + EMAT
+        if T_tertiary >= coldest_hot_target 
+            push!(hot_temps, T_tertiary)
+        end
+    end
+
+    for hot_stream in values(merge(prob.hot_streams_dict, prob.hot_utilities_dict))
+        T_tertiary = hot_stream.T_in - EMAT
+        if T_tertiary <= hottest_cold_target 
+            push!(cold_temps, T_tertiary)
+        end
+    end
+
+    merged_hot_temps = vcat(prob.results_dict[:primary_temperatures].hot_temps, prob.results_dict[:secondary_temperatures].hot_temps, hot_temps) # Primary, secondary and tertiary
+    merged_cold_temps = vcat(prob.results_dict[:primary_temperatures].cold_temps, prob.results_dict[:secondary_temperatures].cold_temps , cold_temps)
+
+    hot_cc = initialize_temperature_intervals(merged_hot_temps)
+    cold_cc = initialize_temperature_intervals(merged_cold_temps)
+
+    verbose && "Hot intervals: $(length(hot_cc)), Cold intervals $(length(cold_cc)) \n"
+
+    assign_all_streams_and_utilities!(prob, hot_cc, cold_cc; drop_infinite = true)
+    calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
+    calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
+
+    isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Tertiary temperature composite curve not balanced")
+    prob.results_dict[:tertiary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)
+    return
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Get the quaternary temperatures for the hot and cold side composite curves for a given `prob`.
+Args:
+- EMAT: Specified Exchanger Minimum Approach Temperature.
+Loads `prob.results_dict[:primary_temperatures]`, `prob.results_dict[:secondary_temperatures]` and `prob.results_dict[:tertiary_temperatures]` if available.   
+Adds `prob.results_dict[:quaternary_temperatures] = (; hot_cc, cold_cc)`
+"""
+function get_quaternary_temperatures!(prob::ClassicHENSProblem, EMAT; verbose = false)
+    # Load tertiary temperatures.
+    merged_hot_temps, merged_cold_temps = Float64[], Float64[]
+    if !haskey(prob.results_dict, :tertiary_temperatures)
+        get_tertiary_temperatures!(prob, EMAT)
+    end
+
+    # Get quaternary temperatures:
+    hot_temps = prob.results_dict[:secondary_temperatures].cold_temps .+ EMAT
+    cold_temps = prob.results_dict[:secondary_temperatures].hot_temps .- EMAT
+
+    # Merging 
+    merged_hot_temps = vcat(prob.results_dict[:primary_temperatures].hot_temps, prob.results_dict[:secondary_temperatures].hot_temps, prob.results_dict[:tertiary_temperatures].hot_temps, hot_temps) # Primary, secondary, tertiary and quaternary
+    merged_cold_temps = vcat(prob.results_dict[:primary_temperatures].cold_temps, prob.results_dict[:secondary_temperatures].cold_temps, prob.results_dict[:tertiary_temperatures].cold_temps, cold_temps)
+
+    hot_cc = initialize_temperature_intervals(merged_hot_temps)
+    cold_cc = initialize_temperature_intervals(merged_cold_temps)
+
+    verbose && "Hot intervals: $(length(hot_cc)), Cold intervals $(length(cold_cc)) \n"
+
+    assign_all_streams_and_utilities!(prob, hot_cc, cold_cc; drop_infinite = true)
+    calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
+    calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
+
+    isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Tertiary temperature composite curve not balanced")
+    prob.results_dict[:quaternary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)
+    return
+end
+            
 
 
 

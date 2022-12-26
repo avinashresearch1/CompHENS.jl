@@ -67,7 +67,7 @@ export ClassicHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 
 # Holds structures for processing the composite curve e.g., kink points
-export point
+export Point
 include("Intervals/curve_points.jl")
 
 # Holds all kinds of temperature intervals
