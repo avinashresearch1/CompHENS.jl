@@ -10,6 +10,7 @@ GAMS = "1ca51c6a-1b4d-4546-9ae1-53e0a243ab12"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Kwonly = "18d08c8c-0732-55ee-a446-91a51d7b4206"
+NamedArrays = "86f7a689-2022-50b4-a561-43c23ac3c673"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 

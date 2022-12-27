@@ -502,6 +502,46 @@ function get_quaternary_temperatures!(prob::ClassicHENSProblem, EMAT; verbose = 
     prob.results_dict[:quaternary_temperatures] = (; hot_cc, cold_cc, hot_temps, cold_temps)
     return
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+Get LMTD for heat transfer between `hot_interval` and `cold_interval`. Return `smallest_value` with verbose warning if infeasible.
+"""
+function LMTD(hot_interval::TemperatureInterval, cold_interval::TemperatureInterval; verbose = false)
+    ΔT_upper = hot_interval.upper.T - cold_interval.upper.T
+    ΔT_lower = hot_interval.lower.T - cold_interval.lower.T
+    if (ΔT_upper < 0.0) || (ΔT_lower < 0.0)
+        verbose && @warn "Infeasible heat transfer between hot $(hot_interval) and $(cold_interval)"
+        return smallest_value
+    end
+
+    if isapprox(ΔT_upper, ΔT_lower; atol = smallest_value) # For numerical robustness when temp differences are similar.
+        return ΔT_upper
+    end
+
+    return (ΔT_upper - ΔT_lower)/log(ΔT_upper/ΔT_lower)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Returns 1 if heat transfer between `hot_interval` and  `cold_interval` is feasible, 0 otherwise.
+
+"""
+function is_feasible(hot_interval::TemperatureInterval, cold_interval::TemperatureInterval; EMAT = 0.0)
+    ΔT_upper = hot_interval.upper.T - cold_interval.upper.T
+    ΔT_lower = hot_interval.lower.T - cold_interval.lower.T
+    if (ΔT_upper >= EMAT) && (ΔT_lower >= EMAT)
+        return true
+    end
+    return false
+end
+
+
+
+
+
             
 
 

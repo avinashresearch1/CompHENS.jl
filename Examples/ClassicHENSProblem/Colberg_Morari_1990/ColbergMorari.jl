@@ -10,7 +10,7 @@ using Test
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
-@time prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
+prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
 
 # 4. Subdivide into intervals and attain the hot and cold composite curves.
 
@@ -35,7 +35,12 @@ ylims!((300,700))
 @time solve_minimum_units_subproblem!(prob)
 @test prob.min_units == 8
 
-# 7. i) get primary temperatures.
+# 7.
+EMAT = 1
+@run generate_stream_matches!(prob, EMAT; verbose = true)
+print_HLD(prob)
+#i) get primary temperatures.
+
 CompHENS.get_primary_temperatures!(prob)
 print_full(prob.results_dict[:primary_temperatures].hot_cc)
 print_full(prob.results_dict[:primary_temperatures].cold_cc)
@@ -56,16 +61,20 @@ EMAT = 2.5
 CompHENS.get_tertiary_temperatures!(prob, EMAT; verbose = true)
 print_full(prob.results_dict[:tertiary_temperatures].hot_cc)
 print_full(prob.results_dict[:tertiary_temperatures].cold_cc)
-plt1 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].hot_cc; verbose = true, color = :red)
-plt2 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].cold_cc; color = :blue)
+#plt1 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].hot_cc; verbose = true, color = :red)
+#plt2 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].cold_cc; color = :blue)
 
 # iii. get quaternary temperatures
 EMAT = 2.5
 CompHENS.get_quaternary_temperatures!(prob, EMAT; verbose = true)
-print_full(prob.results_dict[:tertiary_temperatures].hot_cc)
-print_full(prob.results_dict[:tertiary_temperatures].cold_cc)
+print_full(prob.results_dict[:quaternary_temperatures].hot_cc)
+print_full(prob.results_dict[:quaternary_temperatures].cold_cc)
 println("Hot - Pri: $(prob.results_dict[:primary_temperatures].hot_temps) \n \n Sec: $(prob.results_dict[:secondary_temperatures].hot_temps) \n \n Ter: $(prob.results_dict[:tertiary_temperatures].hot_temps) \n \n Q: $(prob.results_dict[:quaternary_temperatures].hot_temps)") 
 println("Cold - Pri: $(prob.results_dict[:primary_temperatures].cold_temps) \n \n Sec: $(prob.results_dict[:secondary_temperatures].cold_temps) \n \n Ter: $(prob.results_dict[:tertiary_temperatures].cold_temps) \n \n Q: $(prob.results_dict[:quaternary_temperatures].cold_temps)") 
 
-plt1 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].hot_cc; verbose = true, color = :red)
-plt2 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].cold_cc; color = :blue)
+#plt1 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].hot_cc; verbose = true, color = :red)
+#plt2 = plot_composite_curve(prob.results_dict[:tertiary_temperatures].cold_cc; color = :blue)
+
+# 7.b. Generate stream matches:
+@time generate_stream_matches!(prob::ClassicHENSProblem)
+CompHENS.print_HLD(prob)
