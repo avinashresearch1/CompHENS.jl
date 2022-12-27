@@ -36,9 +36,11 @@ ylims!((300,700))
 @test prob.min_units == 8
 
 # 7.
-EMAT = 1
-@run generate_stream_matches!(prob, EMAT; verbose = true)
+EMAT = 2.5
+@time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
 print_HLD(prob)
+
+#=
 #i) get primary temperatures.
 
 CompHENS.get_primary_temperatures!(prob)
@@ -78,3 +80,4 @@ println("Cold - Pri: $(prob.results_dict[:primary_temperatures].cold_temps) \n \
 # 7.b. Generate stream matches:
 @time generate_stream_matches!(prob::ClassicHENSProblem)
 CompHENS.print_HLD(prob)
+=#

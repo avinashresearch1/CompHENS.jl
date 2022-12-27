@@ -1,6 +1,7 @@
 using JuMP
 using HiGHS
 using NamedArrays
+using MathOptInterface
 
 """
 $(TYPEDSIGNATURES)
@@ -30,7 +31,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
         
     for m in hot_cc
         for n in cold_cc
-            if !is_feasible(m, n)
+            if is_feasible(m, n; EMAT = EMAT) == 0
                 for i in H_set
                     for j in C_set
                         JuMP.fix(Q[i, m, j, n], 0.0; force = true)
@@ -65,7 +66,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
     sum(sum(y[i, j] for i in H_set) for j in C_set) == prob.results_dict[:min_units] + add_units)
     
     @objective(model, Min,
-    sum(sum(sum(sum((Q[i, m, j, n]* is_feasible(m, n)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
+    sum(sum(sum(sum((Q[i, m, j, n]* is_feasible(m, n; EMAT =  EMAT)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
     
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
@@ -84,7 +85,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
         for m in hot_cc
             for j in C_set
                 for n in cold_cc
-                    if value.(Q[i, m, j, n]) > 0.0 && !is_feasible(m,n)
+                    if value.(Q[i, m, j, n]) > 0.0 && is_feasible(m,n; EMAT = EMAT) == 0
                         error("Infeasible heat transfer detected")
                     end
                 end
@@ -94,6 +95,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
     =#
 
     # Post-processing
+    termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
     Q_match, y_match = Dict(), Dict()
     for i in H_set
         for j in C_set

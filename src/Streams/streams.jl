@@ -99,5 +99,6 @@ Returns the overall heat transfer coefficient between the `hot_stream` and the  
 
 """
 function U(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{ColdStream, SimpleColdUtility})
-    return hot_stream.h*cold_stream.h/(hot_stream.h + cold_stream.h)
+    u_ij = hot_stream.h*cold_stream.h/(hot_stream.h + cold_stream.h)
+    return max(u_ij, smallest_value) # Numerically don't want to return a 0.
 end

@@ -57,7 +57,7 @@ abstract type AbstractSubProblemSolution end
 export AbstractSynthesisProblem, AbstractSynthesisAlgorithm, AbstractSolution  
 
 # Define own suitable for HENS.
-const smallest_value = 1e-4
+const smallest_value = 1e-8
 export smallest_value
 
 # Holds structures for streams

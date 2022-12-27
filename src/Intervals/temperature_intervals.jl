@@ -519,8 +519,9 @@ function LMTD(hot_interval::TemperatureInterval, cold_interval::TemperatureInter
     if isapprox(ΔT_upper, ΔT_lower; atol = smallest_value) # For numerical robustness when temp differences are similar.
         return ΔT_upper
     end
+    lmtd = (ΔT_upper - ΔT_lower)/log(ΔT_upper/ΔT_lower)
 
-    return (ΔT_upper - ΔT_lower)/log(ΔT_upper/ΔT_lower)
+    return max(lmtd, smallest_value)
 end
 
 """
@@ -533,9 +534,9 @@ function is_feasible(hot_interval::TemperatureInterval, cold_interval::Temperatu
     ΔT_upper = hot_interval.upper.T - cold_interval.upper.T
     ΔT_lower = hot_interval.lower.T - cold_interval.lower.T
     if (ΔT_upper >= EMAT) && (ΔT_lower >= EMAT)
-        return true
+        return 1
     end
-    return false
+    return 0
 end
 
 
