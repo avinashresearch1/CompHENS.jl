@@ -91,3 +91,14 @@ mutable struct SimpleColdUtility <: AbstractUtility
         new(name, Float64(T_in), Float64(T_out), Float64(h), Q, add_user_data, calc)
     end 
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+Returns the overall heat transfer coefficient between the `hot_stream` and the  `cold_stream`.
+
+"""
+function U(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{ColdStream, SimpleColdUtility})
+    u_ij = hot_stream.h*cold_stream.h/(hot_stream.h + cold_stream.h)
+    return max(u_ij, smallest_value) # Numerically don't want to return a 0.
+end
