@@ -65,8 +65,9 @@ export AbstractStream, HotStream, ColdStream, AbstractUtility, SimpleHotUtility,
 include("Streams/streams.jl")
 
 # Hold structures of problem types
-export ClassicHENSProblem
+export ClassicHENSProblem, MultiPeriodFlexibleHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
+include("ProblemConstructors/multiperiod_flexible_hens_prob.jl")
 
 # Holds structures for processing the composite curve e.g., kink points
 export Point
@@ -81,7 +82,7 @@ LMTD, is_feasible
 
 include("Intervals/temperature_intervals.jl")
 
-export solve_minimum_utilities_subproblem!
+export solve_minimum_utilities_subproblem!, print_min_utils_pinch_points
 include("SubProblems/minimum_utilities_subprob.jl")
 
 export solve_minimum_units_subproblem!

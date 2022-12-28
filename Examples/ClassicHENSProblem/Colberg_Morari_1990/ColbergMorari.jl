@@ -27,6 +27,7 @@ ylims!((300,700))
 # 5. Solve minimum utilities problem
 
 @time solve_minimum_utilities_subproblem!(prob)
+print_min_utils_pinch_points(prob)
 @test prob.pinch_points == [(517.0, 497.0)]
 @test isapprox(prob.hot_utilities_dict["ST"].Q, 244.13; atol = 1)
 @test isapprox(prob.cold_utilities_dict["CW"].Q, 172.6; atol = 1)
