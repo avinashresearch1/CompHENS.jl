@@ -12,8 +12,8 @@ file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_FloudasGrossmann.xlsx")
 prob = MultiPeriodFlexibleHENSProblem(file_path_xlsx, 3; verbose = true)
 
 # 3. Solve the minimum utilities subproblem:
-solve_minimum_utilities_subproblem!(prob)
-CompHENS.print_min_utils_pinch_points(prob)
+@time solve_minimum_utilities_subproblem!(prob)
+print_min_utils_pinch_points(prob)
 
 
 

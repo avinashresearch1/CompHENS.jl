@@ -61,7 +61,7 @@ const smallest_value = 1e-8
 export smallest_value
 
 # Holds structures for streams
-export AbstractStream, HotStream, ColdStream, AbstractUtility, SimpleHotUtility, SimpleColdUtility, U 
+export AbstractStream, HotStream, ColdStream, AbstractUtility, SimpleHotUtility, SimpleColdUtility, U, M
 include("Streams/streams.jl")
 
 # Hold structures of problem types

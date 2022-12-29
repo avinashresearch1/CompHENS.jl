@@ -55,6 +55,11 @@ function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
     end
 end
 
+# Defining hash functions to be able to get the superset appropriately for multiperiod problems.
+Base.hash(interval::TemperatureInterval, h::UInt) = hash(interval.upper, hash(interval.lower, h))
+Base.:(==)(a::TemperatureInterval, b::TemperatureInterval) = isequal(a.upper, b.upper) && isequal(a.lower, b.lower)
+
+
 """
 $(TYPEDSIGNATURES)
 
@@ -225,7 +230,9 @@ function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
     end
 end
 
-
+# Defining hash functions to be able to get the superset appropriately for multiperiod problems.
+Base.hash(interval::TransshipmentInterval, h::UInt) = hash(interval.hot_side, hash(interval.cold_side, h))
+Base.:(==)(a::TransshipmentInterval, b::TransshipmentInterval) = isequal(a.hot_side, b.hot_side) && isequal(a.cold_side, b.cold_side)
 
 """
 $(TYPEDSIGNATURES)
