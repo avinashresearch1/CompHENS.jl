@@ -20,13 +20,8 @@ print_min_utils_pinch_points(prob)
 
 # 5. Solving stream match generator problem
 EMAT = 2.5
-
-
-# 5. Solve subproblem 1: minimum utilities. 
-
-# Using formulation of Prob. 16.5 Biegler, Grossmann, Westerberg book. Pg. 533.
-
-min_utils = solve_minimum_utilities_subproblem(prob)
+@time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
+print_HLD(prob)
 
 
 

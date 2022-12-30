@@ -234,7 +234,7 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
     # Post-processing
     termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
     y_match = Dict()
-    for k in periods
+    for t in periods
         Q_match = Dict()
         for i in H_set
             for j in C_set
@@ -242,7 +242,7 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
                 Q_match[(i,j)] = round(sum(sum(value.(Q[(i,m,j,n,t)]) for m in hot_cc[t]) for n in cold_cc[t]); digits = 4)
             end
         end
-        prob.period_streams_dict[k].results_dict[:Q] = Q_match
+        prob.period_streams_dict[t].results_dict[:Q] = Q_match
     end
     prob.results_dict[:y] = y_match
 return
