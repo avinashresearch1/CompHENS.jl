@@ -50,7 +50,7 @@ function Base.getproperty(stream::AbstractStream, sym::Symbol)
     if sym == :Q
         return abs(stream.T_in - stream.T_out)*stream.mcp
     else # fallback to getfield
-        return getfield(interval, sym)
+        return getfield(stream, sym)
     end
 end
 
@@ -123,26 +123,10 @@ end
 
 """
 $(TYPEDSIGNATURES)
-Returns a tight bound for the big-M coefficients. 
+Returns a tight bound for the big-M coefficients i.e. UBD for heat transfer between `hot_stream` and  `cold_stream`. Can only be done after solution of minimum utilities subproblem.
 """
 function M(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{ColdStream, SimpleColdUtility}) 
     return min(hot_stream.Q, cold_stream.Q)
 end
 
-#=
-function M(hot_stream::HotStream, cold_stream::ColdStream) 
 
-
-    if hot_stream isa HotStream
-        hot_contrib = hot_stream.mcp*(hot_stream.T_in-hot_stream.T_out)
-    else
-        hot_contrib = hot_stream.Q
-    end
-    if cold_stream isa ColdStream
-        cold_contrib = cold_stream.mcp*(hot_stream.T_out-hot_stream.T_in)
-    else
-        cold_contrib = cold_stream.Q
-    end
-    return min(hot_contrib, cold_contrib)
-end
-=#

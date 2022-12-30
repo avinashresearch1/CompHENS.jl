@@ -15,20 +15,9 @@ prob = MultiPeriodFlexibleHENSProblem(file_path_xlsx, 3; verbose = true)
 @time solve_minimum_utilities_subproblem!(prob)
 print_min_utils_pinch_points(prob)
 
+# 4. Solve multiperiod minimum units problem
+@time solve_minimum_units_subproblem!(prob; verbose = true)
 
-
-
-#prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0)
-
-# 4. Subdivide into intervals and attain the hot and cold composite curves.
-intervals = CompHENS.generate_heat_cascade_intervals(prob)
-hot_ref_enthalpy, cold_ref_enthalpy = 0.0, 172.596
-sorted_intervals = intervals
-ylabel = "T [°C or K]"
-xlabel = "Heat duty Q"
-
-plt = CompHENS.plot_composite_curve(sorted_intervals; hot_ref_enthalpy, cold_ref_enthalpy, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
-ylims!((300,700))
 
 # 5. Solve subproblem 1: minimum utilities. 
 

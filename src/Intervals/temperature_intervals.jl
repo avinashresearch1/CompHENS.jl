@@ -23,6 +23,15 @@ end
 
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
 
+function print_full(interval::TemperatureInterval; digits = 1)
+    print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
+    for (k,v) in interval.contributions
+        Q = round(v; digits)
+        print(" $k: $Q")
+    end
+    print("\n")
+end
+
 # Code design choice: Instead of having fields in `TemperatureInterval` for each stream type,
 # idea is that it is better/more extensible to compute (lazily) as below.
 function Base.getproperty(interval::TemperatureInterval, sym::Symbol)   
@@ -88,12 +97,7 @@ end
 
 function print_full(intervals::Vector{TemperatureInterval}; digits = 1)
     for interval in intervals
-        print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
-        for (k,v) in interval.contributions
-            Q = round(v; digits)
-            print(" $k: $Q")
-        end
-        print("\n")
+        print_full(interval; digits = digits)
     end
 end
 
