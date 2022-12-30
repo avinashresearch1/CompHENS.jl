@@ -18,6 +18,9 @@ print_min_utils_pinch_points(prob)
 # 4. Solve multiperiod minimum units problem
 @time solve_minimum_units_subproblem!(prob; verbose = true)
 
+# 5. Solving stream match generator problem
+EMAT = 2.5
+
 
 # 5. Solve subproblem 1: minimum utilities. 
 
