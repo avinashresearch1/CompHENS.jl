@@ -23,6 +23,15 @@ end
 
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
 
+function print_full(interval::TemperatureInterval; digits = 1)
+    print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
+    for (k,v) in interval.contributions
+        Q = round(v; digits)
+        print(" $k: $Q")
+    end
+    print("\n")
+end
+
 # Code design choice: Instead of having fields in `TemperatureInterval` for each stream type,
 # idea is that it is better/more extensible to compute (lazily) as below.
 function Base.getproperty(interval::TemperatureInterval, sym::Symbol)   
@@ -55,6 +64,11 @@ function Base.getproperty(interval::TemperatureInterval, sym::Symbol)
     end
 end
 
+# Defining hash functions to be able to get the superset appropriately for multiperiod problems.
+Base.hash(interval::TemperatureInterval, h::UInt) = hash(interval.upper, hash(interval.lower, h))
+Base.:(==)(a::TemperatureInterval, b::TemperatureInterval) = isequal(a.upper, b.upper) && isequal(a.lower, b.lower)
+
+
 """
 $(TYPEDSIGNATURES)
 
@@ -83,12 +97,7 @@ end
 
 function print_full(intervals::Vector{TemperatureInterval}; digits = 1)
     for interval in intervals
-        print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
-        for (k,v) in interval.contributions
-            Q = round(v; digits)
-            print(" $k: $Q")
-        end
-        print("\n")
+        print_full(interval; digits = digits)
     end
 end
 
@@ -225,7 +234,9 @@ function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
     end
 end
 
-
+# Defining hash functions to be able to get the superset appropriately for multiperiod problems.
+Base.hash(interval::TransshipmentInterval, h::UInt) = hash(interval.hot_side, hash(interval.cold_side, h))
+Base.:(==)(a::TransshipmentInterval, b::TransshipmentInterval) = isequal(a.hot_side, b.hot_side) && isequal(a.cold_side, b.cold_side)
 
 """
 $(TYPEDSIGNATURES)

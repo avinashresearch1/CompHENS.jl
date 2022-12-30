@@ -61,6 +61,54 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limi
     return
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Based on Floudas_Grossmann_1987.
+Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_1983 to determine the minimum utility cost in each period of operation. 
+The pinch points for each period `<period_name>` are placed in the `prob.period_streams_dict[<period_name>].results_dict[:pinch_points]`, also see 
+[TODO:] Implement parallel computing version.
+"""
+function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+    for (k,v) in prob.period_streams_dict
+        verbose && @info "Problem $(k)"
+        solve_minimum_utilities_subproblem!(v; time_limit = time_limit, presolve = presolve, optimizer = optimizer, verbose = verbose)
+    end
+    return
+end
+
+"""
+Prints the minimum utility consumption and pinch points for `prob`
+Can only be called after the solving `solve_minimum_utilities_subproblem!(prob)`
+"""
+function print_min_utils_pinch_points(prob::ClassicHENSProblem; drop_infinite = true, digits = 1)
+    for (k,v) in prob.hot_utilities_dict
+        drop_infinite && v.Q == Inf && continue
+        Q_util = round(v.Q; digits = digits)
+        println("Hot utility $(k): $(Q_util) ")
+    end
+    for (k,v) in prob.cold_utilities_dict
+        drop_infinite && v.Q == Inf && continue
+        Q_util = round(v.Q; digits = digits)
+        println("Cold utility $(k): $(Q_util) ")
+    end
+    for pinch in prob.results_dict[:pinch_points]
+        print("Pinch points: $(pinch)    ")
+    end
+    print("\n")
+    return
+end
+
+function print_min_utils_pinch_points(prob::MultiPeriodFlexibleHENSProblem; drop_infinite = true, digits = 1)
+    for k in prob.period_names
+        println("PROBLEM $(k)")
+        print_min_utils_pinch_points(prob.period_streams_dict[k]; drop_infinite = drop_infinite, digits = digits)
+        print("\n")
+    end
+end
+
+
+
 
 #=
 CODE deprecated in favor of holding results in Problem struct itself.

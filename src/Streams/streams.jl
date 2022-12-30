@@ -46,6 +46,14 @@ mutable struct ColdStream <: AbstractStream
     end 
 end
 
+function Base.getproperty(stream::AbstractStream, sym::Symbol)   
+    if sym == :Q
+        return abs(stream.T_in - stream.T_out)*stream.mcp
+    else # fallback to getfield
+        return getfield(stream, sym)
+    end
+end
+
 abstract type AbstractUtility end
 
 """
@@ -92,6 +100,16 @@ mutable struct SimpleColdUtility <: AbstractUtility
     end 
 end
 
+#=
+function Base.getproperty(stream::AbstractUtility, sym::Symbol)   
+    if sym == :Q
+        return stream.Q
+    else # fallback to getfield
+        return getfield(interval, sym)
+    end
+end
+=#
+
 """
 $(TYPEDSIGNATURES)
 
@@ -102,3 +120,13 @@ function U(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{Co
     u_ij = hot_stream.h*cold_stream.h/(hot_stream.h + cold_stream.h)
     return max(u_ij, smallest_value) # Numerically don't want to return a 0.
 end
+
+"""
+$(TYPEDSIGNATURES)
+Returns a tight bound for the big-M coefficients i.e. UBD for heat transfer between `hot_stream` and  `cold_stream`. Can only be done after solution of minimum utilities subproblem.
+"""
+function M(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{ColdStream, SimpleColdUtility}) 
+    return min(hot_stream.Q, cold_stream.Q)
+end
+
+
