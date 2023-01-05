@@ -9,7 +9,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transportation problem presented in Anantharaman 2010 P. 132 to generate stream matches. 
 
 """
-function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = 1, time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = 1, time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
@@ -96,21 +96,57 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
 
     # Post-processing
     termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
-    Q_match, y_match = Dict(), Dict()
-    for i in H_set
-        for j in C_set
-            y_match[(i,j)] = value.(y[i,j])
-            Q_match[(i,j)] = round(sum(sum(value.(Q[i,m,j,n]) for m in hot_cc) for n in cold_cc); digits = 4)
-        end
-    end
-    prob.results_dict[:y] = y_match
-    prob.results_dict[:Q] = Q_match
+    post_HLD_matches!(prob, model, level; digits = digits, display = verbose)
 return
 end
 
 """
-Displays the heat load distribution in a 2-D matrix form. 
-Can only be called after the stream match generation subproblem has been solved when `prob.results_dict[:Q]` is available.
+$(TYPEDSIGNATURES)
+
+Postprocessing after solving stream generation subproblem. 
+Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
+"""
+function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level = :quaternary_temperatures; digits = 4, display = true)
+    H_set = vcat(prob.stream_names[:hot_streams], prob.stream_names[:hot_utilities]) # ordered sets
+    C_set = vcat(prob.stream_names[:cold_streams], prob.stream_names[:cold_utilities])
+    hot_cc, cold_cc = prob.results_dict[level].hot_cc, prob.results_dict[level].cold_cc
+
+    Q_match = zeros(Float64, length(C_set), length(H_set))
+    y_match = zeros(Int, length(C_set), length(H_set))
+    Q = NamedArray(Q_match, (C_set, H_set))
+    y = NamedArray(y_match, (C_set, H_set))
+    
+    
+    for i in H_set
+        for j in C_set
+            y[j, i] = round(value(model[:y][i,j]); digits = 0)
+            Q[j, i] = round(sum(sum(value(model[:Q][i,m,j,n]) for m in hot_cc) for n in cold_cc); digits = digits)
+        end
+    end
+
+    display && @show y
+    display && @show Q
+
+    match_list = Dict{String, Vector{String}}()
+    for i in H_set
+        matches = filter(j -> y[j,i] == 1, C_set)
+        push!(match_list, i => matches)
+    end
+    for j in C_set
+        matches = filter(i -> y[j,i] == 1, H_set)
+        push!(match_list, j => matches)
+    end
+
+    prob.results_dict[:y] = y
+    prob.results_dict[:Q] = Q
+    prob.results_dict[:match_list] = match_list
+    return
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Displays the matches and heat load distribution in a 2-D matrix form. 
 """
 function print_HLD(prob::ClassicHENSProblem)
     hot_names = vcat(prob.stream_names[:hot_streams], prob.stream_names[:hot_utilities])
@@ -121,7 +157,7 @@ function print_HLD(prob::ClassicHENSProblem)
         hld[name[1], name[2]] = round(prob.results_dict[:Q][(name[2], name[1])]; digits = 1) 
     end
     @show hld
-    return
+    return hld
 end
 
 """
