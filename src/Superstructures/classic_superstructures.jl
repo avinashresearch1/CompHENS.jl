@@ -88,13 +88,34 @@ For each stream, the following nodes are defined in the superstructure with abbr
 - Sink `SK` 
 """
 struct FloudasCiricGrossmann <: AbstractSuperstructure
-    nodes::Vector{Node}
+    nodes::Dict{String, Node}
     edges::Vector{Edge} 
 end
 
 function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose = true)
     verbose && @info "Using Superstructure: Floudas, C.A., Ciric, A.R. and Grossmann, I.E., Automatic synthesis of optimum heat exchanger network configurations. AIChE Journal. 1986." 
-    
+    nodes = Node[]
+    push!(nodes, Source("SO"))
+    push!(nodes, Splitter("BS"))
+    for match in prob.results_dict[:match_list][stream]
+        push!(nodes, Mixer("SM", match))
+        push!(nodes, HX("HX", match))
+        push!(nodes, Splitter("SS", match))
+    end
+    push!(nodes, Mixer("BM"))
+    push!(nodes, Sink("SK"))
+
+    edges = Edge[]
+    push!(edges, Edge(nodes["SO"], nodes["BS"]))
+    for (k,v) in nodes
+        if v isa Mixer
+
+
+
+        
+        
+
+
     new([],[])
 end
 
