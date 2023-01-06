@@ -67,28 +67,64 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
     push!(nodes, "SK" => Sink())
 
     edges = Edge[]
-    #new([],[])
-    return nodes
+    for (k,v) in nodes
+        for node in _fcg_out_nodes(v, nodes)
+            push!(edges, Edge(v, node))
+        end
+    end
+    length(nodes) == 3*length(prob.results_dict[:match_list][stream]) + 4 || error("Incorrect number of nodes generated!")
+    return nodes, edges
 end
 
-
+# [TODO:] More elegant way to do this? Every other approach doesn't seem manual and not extensible to other superstructures.
 function _fcg_out_nodes(node::Source, nodes::Dict{String, Node})
     # For FloudasCiricGrossmann superstructure. Returns a `Vector{Node}` for all `out` nodes connected to by  in `node`.
     out_nodes = filter(nodes) do (k,v)
-        v isa MajorMixer
+        v isa MajorSplitter
     end
 
     length(out_nodes) == 1 || error("Not compatible with FloudasCiricGrossmann")
     return values(out_nodes)
 end
 
-function _fcg_out_nodes(node::MajorMixer, nodes::Dict{String, Node})
+function _fcg_out_nodes(node::MajorSplitter, nodes::Dict{String, Node}) 
     # For FloudasCiricGrossmann superstructure. Returns a `Vector{Node}` for all `out` nodes connected to by  in `node`.
-    out_nodes = filter(nodes) do (k,v)
-        v isa MajorMixer
+    out_nodes = filter(nodes) do (k,v) # MajorSplitter connects to all MinorMixer nodes
+        v isa MinorMixer
     end
-
-    length(out_nodes) == 1 || "Not compatible with FloudasCiricGrossmann"
     return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::MinorMixer, nodes::Dict{String, Node}) 
+    out_nodes = filter(nodes) do (k,v) # MinorMixer connects to HX with the same match. 
+        v isa HX && node.match == v.match
+    end
+    return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::HX, nodes::Dict{String, Node}) 
+    out_nodes = filter(nodes) do (k,v) # HXs connects to MinorSplitter with the same match. 
+        v isa MinorSplitter && node.match == v.match
+    end
+    return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::MinorSplitter, nodes::Dict{String, Node}) 
+    out_nodes = filter(nodes) do (k,v) # A MinorSplitter connects to every MinorMixer that does not have the same match. Also connects to MajorMixer
+        (v isa MajorMixer) || (v isa MinorMixer && node.match != v.match)
+    end
+    return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::MajorMixer, nodes::Dict{String, Node}) 
+    out_nodes = filter(nodes) do (k,v) # A MajorMixer only connects to a Sink
+        v isa Sink
+    end
+    length(out_nodes) == 1 || error("Not compatible with FloudasCiricGrossmann")
+    return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::Sink, nodes::Dict{String, Node}) 
+    return Node[]
 end
 

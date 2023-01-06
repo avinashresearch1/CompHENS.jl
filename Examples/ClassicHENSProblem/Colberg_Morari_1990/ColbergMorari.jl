@@ -29,3 +29,6 @@ EMAT = 2.5
 @time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
 #print_HLD(prob)
 
+# 7. Network generation:
+# Superstructure:
+nodes, edges = FloudasCiricGrossmann("C1", prob);
