@@ -7,66 +7,27 @@ abstract type AbstractSuperstructure end
 
 abstract type Node end
 
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
+struct Source <: Node end
 
-Source node for a single stream
-"""
-struct Source <: Node
-    name::String
-end
-
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
-
-Mixer node for a single stream
-"""
-struct Mixer <: Node
-    name::String
+abstract type Mixer <: Node end
+struct MajorMixer <: Mixer end
+struct MinorMixer <: Mixer
     """match is the stream the HX immediately after the Mixer matches with. Set to `nothing` for Big Mixer"""
-    match::{Nothing, String}
-    function Mixer(name, match = nothing)
-        new(name, match)
-    end
-end
-
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
-
-Heat Exchanger node for a single stream
-"""
-struct HX <: Node
-    name::String
     match::String
 end
 
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
+struct HX <: Node
+    match::String
+end
 
-Mixer node for a single stream
-"""
-struct Splitter <: Node
-    name::String
+abstract type Splitter <: Node end
+struct MajorSplitter <: Splitter end
+struct MinorSplitter <: Splitter
     """match is the stream the HX immediately before the Splitter matches with. Set to `nothing` for Big Splitter"""
-    match::{Nothing, String}
-    function Splitter(name, match = nothing)
-        new(name, match)
-    end
+    match::String
 end
 
-"""
-$(TYPEDEF)
-$(TYPEDFIELDS)
-
-Sink node for a single stream
-"""
-struct Sink <: Node
-    name::String
-end
+struct Sink <: Node end
 
 struct Edge
     in::Node
@@ -94,30 +55,40 @@ end
 
 function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose = true)
     verbose && @info "Using Superstructure: Floudas, C.A., Ciric, A.R. and Grossmann, I.E., Automatic synthesis of optimum heat exchanger network configurations. AIChE Journal. 1986." 
-    nodes = Node[]
-    push!(nodes, Source("SO"))
-    push!(nodes, Splitter("BS"))
+    nodes = Dict{String, Node}()
+    push!(nodes, "SO" => Source())
+    push!(nodes, "BS" => MajorSplitter())
     for match in prob.results_dict[:match_list][stream]
-        push!(nodes, Mixer("SM", match))
-        push!(nodes, HX("HX", match))
-        push!(nodes, Splitter("SS", match))
+        push!(nodes, "SM_$(match)" => MinorMixer(match))
+        push!(nodes, "HX_$(match)" => HX(match))
+        push!(nodes, "SS_$(match)" => MinorSplitter(match))
     end
-    push!(nodes, Mixer("BM"))
-    push!(nodes, Sink("SK"))
+    push!(nodes, "BM" => MajorMixer())
+    push!(nodes, "SK" => Sink())
 
     edges = Edge[]
-    push!(edges, Edge(nodes["SO"], nodes["BS"]))
-    for (k,v) in nodes
-        if v isa Mixer
-
-
-
-        
-        
-
-
-    new([],[])
+    #new([],[])
+    return nodes
 end
 
 
+function _fcg_out_nodes(node::Source, nodes::Dict{String, Node})
+    # For FloudasCiricGrossmann superstructure. Returns a `Vector{Node}` for all `out` nodes connected to by  in `node`.
+    out_nodes = filter(nodes) do (k,v)
+        v isa MajorMixer
+    end
+
+    length(out_nodes) == 1 || error("Not compatible with FloudasCiricGrossmann")
+    return values(out_nodes)
+end
+
+function _fcg_out_nodes(node::MajorMixer, nodes::Dict{String, Node})
+    # For FloudasCiricGrossmann superstructure. Returns a `Vector{Node}` for all `out` nodes connected to by  in `node`.
+    out_nodes = filter(nodes) do (k,v)
+        v isa MajorMixer
+    end
+
+    length(out_nodes) == 1 || "Not compatible with FloudasCiricGrossmann"
+    return values(out_nodes)
+end
 

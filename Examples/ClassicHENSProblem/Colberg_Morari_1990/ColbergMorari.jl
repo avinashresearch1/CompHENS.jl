@@ -27,5 +27,5 @@ print_min_utils_pinch_points(prob)
 # 6. Generate stream matches
 EMAT = 2.5
 @time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
-print_HLD(prob)
+#print_HLD(prob)
 
