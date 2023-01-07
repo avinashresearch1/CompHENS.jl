@@ -31,4 +31,4 @@ EMAT = 2.5
 
 # 7. Network generation:
 # Superstructure:
-nodes, edges = FloudasCiricGrossmann("C1", prob);
+fcg1 = FloudasCiricGrossmann("C1", prob);

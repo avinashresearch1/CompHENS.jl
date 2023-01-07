@@ -34,8 +34,6 @@ struct Edge
     out::Node
 end 
 
-
-
 """
 $(TYPEDEF)
 For each stream, the following nodes are defined in the superstructure with abbreviations provided:
@@ -73,7 +71,7 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
         end
     end
     length(nodes) == 3*length(prob.results_dict[:match_list][stream]) + 4 || error("Incorrect number of nodes generated!")
-    return nodes, edges
+    return FloudasCiricGrossmann(nodes, edges)
 end
 
 # [TODO:] More elegant way to do this? Every other approach doesn't seem manual and not extensible to other superstructures.
