@@ -126,3 +126,50 @@ function _fcg_out_nodes(node::Sink, nodes::Dict{String, Node})
     return Node[]
 end
 
+function Base.getproperty(superstructure::AbstractSuperstructure, sym::Symbol)   
+    if sym == :splitters
+        return filter(superstructure.nodes) do (k,v)
+            v isa Splitter
+        end  
+    elseif sym == :mixers
+        return filter(superstructure.nodes) do (k,v)
+            v isa Mixer
+        end  
+    elseif sym == :hxs
+        return filter(superstructure.nodes) do (k,v)
+            v isa HX
+        end
+    elseif sym == :source
+        return filter(superstructure.nodes) do (k,v)
+            v isa Source
+        end
+    elseif sym == :sink
+        return filter(superstructure.nodes) do (k,v)
+            v isa Sink
+        end
+    else # fallback to getfield
+        return getfield(superstructure, sym)
+    end
+end
+
+"""
+$(TYPEDEF)
+Given a `node::Node`, get all the source nodes that have edges connecting to it.
+""" 
+function get_source_nodes(node::Node, superstructure::AbstractSuperstructure)
+    source_nodes = filter(superstructure.nodes) do (k,v)
+        Edge(v,node) ∈ superstructure.edges
+    end
+    return source_nodes
+end
+
+"""
+$(TYPEDEF)
+Given a `node::Node`, get all the destination nodes that it connects to through an edge.
+""" 
+function get_destination_nodes(node::Node, superstructure::AbstractSuperstructure)
+    destination_nodes = filter(superstructure.nodes) do (k,v)
+        Edge(node, v) ∈ superstructure.edges
+    end
+    return destination_nodes
+end
