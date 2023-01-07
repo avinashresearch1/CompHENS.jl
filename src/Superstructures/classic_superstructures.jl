@@ -4,6 +4,8 @@ $(TYPEDEF)
 Holds an abstract superstructure 
 """
 abstract type AbstractSuperstructure end
+abstract type AbstractStreamSuperstructure end
+
 
 abstract type Node end
 
@@ -34,6 +36,9 @@ struct Edge
     out::Node
 end 
 
+#Base.show(io::IO, edge::Edge) = print(io, "($(in.)")
+
+
 """
 $(TYPEDEF)
 For each stream, the following nodes are defined in the superstructure with abbreviations provided:
@@ -46,13 +51,21 @@ For each stream, the following nodes are defined in the superstructure with abbr
 - Major stream mixer `BM` (Big Mixer)
 - Sink `SK` 
 """
-struct FloudasCiricGrossmann <: AbstractSuperstructure
+struct FCGStreams <: AbstractStreamSuperstructure
     nodes::Dict{String, Node}
     edges::Vector{Edge} 
 end
 
-function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose = true)
+struct FloudasCiricGrossmann <: AbstractSuperstructure
+    streams::Dict{String, FCGStreams}
+end
+
+function FloudasCiricGrossmann(; streams = Dict{String, FCGStreams}(), verbose = true)
     verbose && @info "Using Superstructure: Floudas, C.A., Ciric, A.R. and Grossmann, I.E., Automatic synthesis of optimum heat exchanger network configurations. AIChE Journal. 1986." 
+    FloudasCiricGrossmann(streams)
+end
+
+function FCGStreams(stream::String, prob::ClassicHENSProblem; verbose = true)
     nodes = Dict{String, Node}()
     push!(nodes, "SO" => Source())
     push!(nodes, "BS" => MajorSplitter())
@@ -71,7 +84,7 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
         end
     end
     length(nodes) == 3*length(prob.results_dict[:match_list][stream]) + 4 || error("Incorrect number of nodes generated!")
-    return FloudasCiricGrossmann(nodes, edges)
+    return FCGStreams(nodes, edges)
 end
 
 # [TODO:] More elegant way to do this? Every other approach doesn't seem manual and not extensible to other superstructures.
@@ -126,7 +139,7 @@ function _fcg_out_nodes(node::Sink, nodes::Dict{String, Node})
     return Node[]
 end
 
-function Base.getproperty(superstructure::AbstractSuperstructure, sym::Symbol)   
+function Base.getproperty(superstructure::AbstractStreamSuperstructure, sym::Symbol)   
     if sym == :splitters
         return filter(superstructure.nodes) do (k,v)
             v isa Splitter
@@ -154,9 +167,25 @@ end
 
 """
 $(TYPEDEF)
+Given a `node::Node`, get all the outgoing edges.
+""" 
+function out_edges(node::Node, superstructure::AbstractStreamSuperstructure)
+    return filter(edge -> edge.in == node, superstructure.edges)
+end 
+
+"""
+$(TYPEDEF)
+Given a `node::Node`, get all the incoming edges.
+""" 
+function in_edges(node::Node, superstructure::AbstractStreamSuperstructure)
+    return filter(edge -> edge.out == node, superstructure.edges)
+end
+
+"""
+$(TYPEDEF)
 Given a `node::Node`, get all the source nodes that have edges connecting to it.
 """ 
-function get_source_nodes(node::Node, superstructure::AbstractSuperstructure)
+function get_source_nodes(node::Node, superstructure::AbstractStreamSuperstructure)
     source_nodes = filter(superstructure.nodes) do (k,v)
         Edge(v,node) ∈ superstructure.edges
     end
@@ -167,7 +196,7 @@ end
 $(TYPEDEF)
 Given a `node::Node`, get all the destination nodes that it connects to through an edge.
 """ 
-function get_destination_nodes(node::Node, superstructure::AbstractSuperstructure)
+function get_destination_nodes(node::Node, superstructure::AbstractStreamSuperstructure)
     destination_nodes = filter(superstructure.nodes) do (k,v)
         Edge(node, v) ∈ superstructure.edges
     end

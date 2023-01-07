@@ -6,6 +6,8 @@ using JuMP
 using HiGHS
 using Test
 
+exportall(CompHENS)
+
 # 2. Specify path to xlsx file
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 
@@ -26,9 +28,11 @@ print_min_utils_pinch_points(prob)
 
 # 6. Generate stream matches
 EMAT = 2.5
-@time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
+@time generate_stream_matches!(prob, EMAT; add_units = 1)
 #print_HLD(prob)
 
 # 7. Network generation:
 # Superstructure:
-fcg1 = FloudasCiricGrossmann("C1", prob);
+superstructure = FloudasCiricGrossmann()
+fcg1 = FCGStreams("C1", prob);
+
