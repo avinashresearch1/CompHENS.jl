@@ -8,24 +8,24 @@ abstract type NetworkObjective end
 
 """
 $(TYPEDEF) 
-Uses Arithmetic mean to approximate LMTD. No economies of scale. Results in substantial error.
+Minimizes total network area. Uses Arithmetic mean to approximate LMTD. Results in substantial error.
 """
-struct ArithmeticMeanLinear <: NetworkObjective end
+struct AreaArithmeticMean <: NetworkObjective end
 
 """
 $(TYPEDEF) 
-Uses Paterson formula to approximate LMTD. Has economies of scale. 
+Minimizes total network cost using specified economies of scale. Uses Paterson formula to approximate LMTD. 
 """
-struct PatersonScaled <: NetworkObjective end
+struct CostScaledPaterson <: NetworkObjective end
 
 """
 $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-#function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; LMTD_approx::NetworkObjective = Paterson(), time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+#function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
     #verbose && @info "Solving the Network Generation subproblem"
-    
+    obj_func = AreaArithmeticMean()
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :match_list) || error("Match list data not available. Solve corresponding subproblem first.")
@@ -55,18 +55,14 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
         @variable(streams[hot], ΔT_upper[cold_match_list] >= EMAT)
         @variable(streams[hot], ΔT_lower[cold_match_list] >= EMAT)
         for cold in cold_match_list
-            add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])
-            #add_match_objective!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold], prob, LMTD_approx)
+            add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])    
         end
+        #add_stream_objective!(prob.hot_dict[hot], streams[hot], obj_func, prob)
     end
 
-    
-    match_list_H1 = ["H1"]
-    @variable(streams["H1"], EMAT1[match_list_H1])
-    
-    @variable(HEN, EMAT <= ΔT_lower[all_match_tuple_set])
-
-            
+    @variable(streams["H1"], strm_obj_fn)
+    @NLconstraint(streams["H1"], streams["H1"][:strm_obj_fn] == sum(((2/(streams["H1"][:ΔT_upper][cold] + streams["H1"][:ΔT_lower][cold]))) for cold in prob.results_dict[:match_list]["H1"]))
+    @objective(streams["H1"], Min, streams["H1"][:strm_obj_fn])        
 
 
 
@@ -191,8 +187,22 @@ function add_match_linkconstraints!(hot::Union{HotStream, SimpleHotUtility}, col
     @linkconstraint(overall_prob, hot_prob[:ΔT_lower][cold.name] ==  hot_prob[:t][hot_hx_out_edge] - cold_prob[:t][cold_hx_in_edge])
 end   
 
-
-
+"""
+$(TYPEDEF) 
+Function used to set the objective of each hot stream problem. The objective of the network generation problem is a linear combination of objectives of hot stream problems.
+"""
+function add_stream_objective!(hot::Union{HotStream, SimpleHotUtility}, hot_prob::OptiNode, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem)
+    @variable(hot_prob, stream_obj_fn)
+    @NLconstraint(hot_prob, hot_prob[:stream_obj_fn] == sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))
+    @objective(hot_prob, Min, hot_prob[:stream_obj_fn])
+    #@NLobjective(hot_prob, Min, sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))     
+    # @NLobjective(hot_prob, Min, sum(prob.results_dict[:Q][cold, hot.name] for cold in prob.results_dict[:match_list][hot.name]))
+    # Currently, with Plasmo need to set as constraint, since @NLobjective is not supported.
+    #@variable(hot_prob, stream_obj_fn)
+    #@constraint(hot_prob, hot_prob[:stream_obj_fn] == prob.results_dict[:Q][cold.name, hot.name])
+    #@NLconstraint(hot_prob, hot_prob[:objective] == 
+    # @objective(hot_prob, Min, hot_prob[:objective])
+end
 
 #superstructure = overall_network["ST"]
 print_node(streams["C1"])
