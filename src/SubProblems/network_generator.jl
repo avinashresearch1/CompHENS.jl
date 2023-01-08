@@ -1,26 +1,77 @@
 using Plasmo
 
 """
+$(TYPEDEF) 
+Holds approximations and approaches to deal with nonconvexities in the objective of the network optimization problem: In particular, approaches related to nonconvexities in LMTD approximation and economies of scale. 
+"""
+abstract type NetworkObjective end
+
+"""
+$(TYPEDEF) 
+Uses Arithmetic mean to approximate LMTD. No economies of scale. Results in substantial error.
+"""
+struct ArithmeticMeanLinear <: NetworkObjective end
+
+"""
+$(TYPEDEF) 
+Uses Paterson formula to approximate LMTD. Has economies of scale. 
+"""
+struct PatersonScaled <: NetworkObjective end
+
+"""
 $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-#function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+#function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; LMTD_approx::NetworkObjective = Paterson(), time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
     #verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :match_list) || error("Match list data not available. Solve corresponding subproblem first.")
+    haskey(prob.results_dict, :T_bounds) || generate_temperature_bounds!(prob)
 
     #y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
     
     HEN = OptiGraph()
     @optinode(HEN, streams[prob.all_names])
 
+    # 1. This generates the stream-wise optimization model i.e., each stream gives rise to an OptiNode
     for stream in prob.all_names
-        add_stream_variables!(prob.all_dict[stream], streams[stream], overall_network[stream])
-        add_stream_constraints!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
+        add_stream_variables!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
+        #add_stream_constraints!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
     end
+
+    #2. Plasmo currently does not allow adding Variables or Objectives to the OptiGraph object (see issue). 
+    # The general idea is to treat all the matches as belonging to the hot stream OptiNode. Thus, temperature differences, LMTDs, HX area and HX cost are all treated only on the hot side OptiNode.  
+    # The following procedure is followed:
+    # i. For every `hot` stream, and for every match: `ΔT_upper` and  `ΔT_lower` variables are declared. hot_node[:ΔT_upper][cold] denotes the ΔT_upper variable for the hot stream on its `cold` match. 
+    # ΔT_upper is the temperature difference btn hot stream entrance to HX, and cold stream exit from HX. Both ΔT_upper and ΔT_lower constrained >= EMAT.
+    # ii. `add_match_linkconstraints()` function is used to set the ΔT_upper values to be equal to the appropriate temperature difference.
+    # iii. `add_stream_objective()` Adds an area objective to ONLY the hot streams and utilities NOT cold streams and objectives. This prevents double-counting area when the overall objective is taken as linear combination of `OptiNode` objectives.  
+    # Depending on the type of the `LMTD_approx` kwarg, different approximations may be used for the LMTD and the objective. 
+    for hot in prob.hot_names
+        cold_match_list = prob.results_dict[:match_list][hot]
+        @variable(streams[hot], ΔT_upper[cold_match_list] >= EMAT)
+        @variable(streams[hot], ΔT_lower[cold_match_list] >= EMAT)
+        for cold in cold_match_list
+            add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])
+            #add_match_objective!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold], prob, LMTD_approx)
+        end
+    end
+
+    
+    match_list_H1 = ["H1"]
+    @variable(streams["H1"], EMAT1[match_list_H1])
+    
+    @variable(HEN, EMAT <= ΔT_lower[all_match_tuple_set])
+
+            
+
+
+
+    # Also: Adds `ΔT_upper` and `ΔT_lower` for each stream.
+    #
 
 
 # TRY JUNIPER.
@@ -30,14 +81,14 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
 """
 $(TYPEDEF)
 For a given `stream`, adds the `f` (stream flow rate through edge /mcp) and `t` temperature variables for each edge. `stream_prob` is usually attained from `Plasmo.@optinode`
-[TODO:] Add good bounds.
+
 """
-function add_stream_variables!(stream::AbstractStream, stream_prob::OptiNode, superstructure::AbstractSuperstructure)
-    @variable(stream_prob, 0 <= t[superstructure.edges])
+function add_stream_variables!(stream::AbstractStream, stream_prob::OptiNode, superstructure::AbstractSuperstructure, prob::ClassicHENSProblem, EMAT)
+    @variable(stream_prob, prob.results_dict[:T_bounds][stream.name][1] <= t[superstructure.edges] <= prob.results_dict[:T_bounds][stream.name][2])
     @variable(stream_prob, 0 <= f[superstructure.edges] <= stream.mcp)
 end
 
-function add_stream_variables!(stream::AbstractUtility, stream_prob::OptiNode, superstructure::AbstractSuperstructure)
+function add_stream_variables!(stream::AbstractUtility, stream_prob::OptiNode, superstructure::AbstractSuperstructure, prob::ClassicHENSProblem)
     # No `f` for utilities.
     @variable(stream_prob, 0 <= t[superstructure.edges])
 end
@@ -55,7 +106,7 @@ function add_stream_constraints!(stream::AbstractStream, stream_prob::OptiNode, 
 
     BM_SK_edge = in_edges(superstructure.sink[1], superstructure)[1]
     @constraint(stream_prob, stream_prob[:f][BM_SK_edge] == stream.mcp)
-    @constraint(stream_prob, stream_prob[:t][SO_BS_edge] == stream.T_out)  
+    @constraint(stream_prob, stream_prob[:t][BM_SK_edge] == stream.T_out)  
 
     # 2. Adding mass balance constraints for all nodes except `Source` and `Sink`
     internal_nodes = filter(superstructure.nodes) do v
@@ -114,21 +165,68 @@ function add_stream_constraints!(stream::AbstractUtility, stream_prob::OptiNode,
     return
 end
 
+s_n, m_n = "H1", "C1"
+hot, cold, overall_prob, hot_prob, cold_prob, hot_superstructure, cold_superstructure = prob.all_dict[s_n], prob.all_dict[m_n], HEN, streams[s_n], streams[m_n], overall_network[s_n], overall_network[m_n]  
+
+"""
+$(TYPEDEF) 
+Function used to set the ΔT_upper and ΔT_lower for the `hot_prob`
+"""
+function add_match_linkconstraints!(hot::Union{HotStream, SimpleHotUtility}, cold::Union{ColdStream, SimpleColdUtility}, overall_prob::OptiGraph, hot_prob::OptiNode, cold_prob::OptiNode, hot_superstructure::AbstractSuperstructure, cold_superstructure::AbstractSuperstructure)
+    hot_HX = filter(hot_superstructure.hxs) do v
+         v.match == cold.name
+    end[1] # Should only be 1. Add check?
+    hot_hx_in_edge, hot_hx_out_edge  = in_edges(hot_HX, hot_superstructure)[1], out_edges(hot_HX, hot_superstructure)[1]
+
+    # Match is always a cold stream or cold utility
+    cold_HX = filter(cold_superstructure.hxs) do v
+        v.match == hot.name
+   end[1]
+   cold_hx_in_edge, cold_hx_out_edge  = in_edges(cold_HX, cold_superstructure)[1], out_edges(cold_HX, cold_superstructure)[1]
+
+   # Setting ΔT_upper
+   @linkconstraint(overall_prob, hot_prob[:ΔT_upper][cold.name] ==  hot_prob[:t][hot_hx_in_edge] - cold_prob[:t][cold_hx_out_edge])
+
+    # Setting ΔT_lower
+    @linkconstraint(overall_prob, hot_prob[:ΔT_lower][cold.name] ==  hot_prob[:t][hot_hx_out_edge] - cold_prob[:t][cold_hx_in_edge])
+end   
 
 
 
 
+#superstructure = overall_network["ST"]
+print_node(streams["C1"])
+generate_temperature_bounds!(prob)
 
+"""
+$(TYPEDEF) 
+Generates bounds on the temperatures for a stream. 
+Creates a `prob.results_dict[:T_bounds]::Dict{String, Tuple}`, where the tuple is `(T_LBD, T_UBD)`
+"""
+function generate_temperature_bounds!(prob::ClassicHENSProblem)
+    T_bounds = Dict{String, Tuple}()
+    for (k,v) in prob.streams_dict
+        push!(T_bounds, k => generate_temperature_bounds(prob, v))
+    end
+    prob.results_dict[:T_bounds] = T_bounds
+end
+
+function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::HotStream)
+    T_UBD = stream.T_in
+    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    return (T_LBD, T_UBD)
+end
+
+function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::ColdStream)
+    T_LBD = stream.T_in
+    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    return (T_LBD, T_UBD)
+end
 
 """
 $(TYPEDEF)
 Prints the optimization model for the stream
 """
-function print_node(stream_node::OptiNode)
-    print(jump_model(stream_node))
+function print_stream_prob(stream_prob::OptiNode)
+    print(jump_model(stream_prob))
 end
- 
-    
-
-#superstructure = overall_network["ST"]
-print_node(streams["H1"])
