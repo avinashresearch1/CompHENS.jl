@@ -1,16 +1,12 @@
 using Plasmo
 
-overall_network = construct_superstructure()
-
-
-
 """
 $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
 #function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
-    verbose && @info "Solving the Network Generation subproblem"
+    #verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
@@ -19,27 +15,16 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
     
     HEN = OptiGraph()
-    @optinode(HEN, streams[stream_set])
+    @optinode(HEN, streams[prob.all_names])
 
-    for stream in stream_set
-        stream_struc =  FloudasCiricGrossmann(stream, prob; verbose = false)
-        edges = stream_struc.edges
-        push!(overall_network, stream => stream_struc)
-        
-
-        # Declare variables stream-wise for all edges
-        @variable(streams[stream], 0 <= t[edges]) # `t` denotes the temperatures. [TODO:] Get good bounds!
-        if all_stream_set[stream] isa AbstractStream # f only for streams not utilities.
-            @variable(streams[stream], 0 <= f[edges]) # `f` denotes the stream flow rate through edge (mcp)
-        end
-
-        #add_constraints(all_stream_set[stream], streams, stream_struc)
-
+    for stream in prob.all_names
+        add_stream_variables!(prob.all_dict[stream], streams[stream], overall_network[stream])
+        add_stream_constraints!(prob.all_dict[stream], streams[stream], overall_network[stream])
     end
 
 
 # TRY JUNIPER.
-
+# Need to return `streams` for bookkeeping.
 #end
 
 """
@@ -60,58 +45,71 @@ end
 
 """
 $(TYPEDEF)
-Adds constraints for each `stream`. Better not to use MD here. 
+Adds constraints for each `stream`.
 """
-function add_stream_constraints!(stream::AbstractStream, streams, stream_struc::AbstractSplitSuperstructure)
-    internal_nodes = filter(stream_struc.nodes) do v
+function add_stream_constraints!(stream::AbstractStream, stream_prob::OptiNode, superstructure::AbstractSplitSuperstructure)
+    # 1. Source and Sink constraints on `t` and `f`
+    
+
+
+    
+    # 2. Adding mass balance constraints for all nodes except `Source` and `Sink`
+    internal_nodes = filter(superstructure.nodes) do v
         !isa(v, Source) && !isa(v, Sink)
     end
-
-    #=
-    # 1. Adding mass balance constraints for all nodes except `Source` and `Sink`
     for node in internal_nodes
-        @constraint(streams[stream.name], sum(streams[stream.name][:f][edge] for edge in in_edges(node, stream_struc)) == sum(streams[stream.name][:f][edge] for edge in out_edges(node, stream_struc)))
+        @constraint(stream_prob, sum(stream_prob[:f][edge] for edge in in_edges(node, superstructure)) == sum(stream_prob[:f][edge] for edge in out_edges(node, superstructure)))
     end
     
     # 2. Setting equal temperatures for all streams entering and leaving a splitter
-    for splitter in values(stream_struc.splitters)
-        length(in_edges(splitter, stream_struc)) == 1 || error("This function only works with superstructures where each splitter has a single incoming edge")
-        edge_in = in_edges(splitter, stream_struc)[1] # Only one in edge allowed
-        for out_edge in out_edges(splitter, stream_struc)
-            @constraint(streams[stream.name], streams[stream.name][:t][out_edge] == streams[stream.name][:t][edge_in])
+    for splitter in superstructure.splitters
+        edge_in = in_edges(splitter, superstructure)[1] # Only one in edge allowed
+        for out_edge in out_edges(splitter, superstructure)
+            @constraint(stream_prob, stream_prob[:t][out_edge] == stream_prob[:t][edge_in])
         end
     end
-    =#
 
     # 3. Setting mixer energy balance
-    for mixer in values(stream_struc.mixers)
-        length(out_edges(mixer, stream_struc)) == 1 || error("This function only works with superstructures where each mixer has a single outgoing edge")
-        edge_out = out_edges(mixer, stream_struc)[1] # Only one out edge allowed
-        @NLconstraint(streams[stream.name], sum(streams[stream.name][:f][in_edge]*streams[stream.name][:t][in_edge] for in_edge in in_edges(mixer, stream_struc)) == streams[stream.name][:f][edge_out]*streams[stream.name][:t][edge_out])
+    for mixer in superstructure.mixers
+        edge_out = out_edges(mixer, superstructure)[1] # Only one out edge allowed
+        @NLconstraint(stream_prob, sum(stream_prob[:f][in_edge]*stream_prob[:t][in_edge] for in_edge in in_edges(mixer, superstructure)) == stream_prob[:f][edge_out]*stream_prob[:t][edge_out])
+    end
+end
+
+function add_stream_constraints!(stream::AbstractUtility, stream_prob::OptiNode, superstructure::ParallelSplit)
+    # Only set edge temperatures for LMTD. All edge temperature before the HX are equal to Source temperature. All after HX are set at Sink temperature.   
+    # Hack is to set all edges connected to MajorSplitter at same temperature as stream.T_in, and all to MajorMixer at same temperature as stream.T_out.
+    major_splitter = filter(v -> (v isa MajorSplitter), superstructure.nodes)
+    major_mixer = filter(v -> (v isa MajorMixer), superstructure.nodes)
+
+    splitter_edges = union(in_edges(major_splitter[1], superstructure), out_edges(major_splitter[1], superstructure))
+    mixer_edges = union(in_edges(major_mixer[1], superstructure), out_edges(major_mixer[1], superstructure))
+    
+    for edge in splitter_edges
+        @constraint(stream_prob, stream_prob[:t][edge] == stream.T_in)
     end
 
-
+    for edge in mixer_edges
+        @constraint(stream_prob, stream_prob[:t][edge] == stream.T_out)
+    end
+    return
 end
 
 
-stream_struc = superstructure.streams["H1"]
-add_stream_constraints!(all_stream_set["H1"], streams, superstructure.streams["H1"])
-print(jump_model(streams["H1"]))
+
+superstructure = overall_network["ST"]
+add_stream_constraints!(prob.all_dict["ST"], streams["ST"], overall_network["ST"])
+
+
+"""
+$(TYPEDEF)
+Prints the optimization model for the stream
+"""
+function print_node(stream_node::OptiNode)
+    print(jump_model(stream_node))
+end
+ 
     
 
 
-
-
-
-#end
-
-#=
-"""
- Creates the edge `t` and `f` variables for each `stream`. `streams` is a `DenseAxisArray` usually attained from `Plasmo.@optinode`. 
-"""
-function create_edge_variables(stream::AbstractStream, streams, superstructure::AbstractSuperstructure)
-
-end
-=#
-
-
+print_node(streams["H1"])

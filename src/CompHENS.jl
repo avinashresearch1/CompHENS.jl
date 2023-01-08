@@ -91,7 +91,9 @@ include("SubProblems/minimum_number_of_units.jl")
 export generate_stream_matches!, print_HLD
 include("SubProblems/generate_stream_matches.jl")
 
-export AbstractSuperstructure, AbstractStreamSuperstructure, FloudasCiricGrossmann
+export AbstractSuperstructure, AbstractSplitSuperstructure, construct_superstructure, FloudasCiricGrossmann, ParallelSplit, print_node
 include("Superstructures/classic_superstructures.jl")
+include("Superstructures/FloudasCiricGrossmann.jl")
+include("Superstructures/ParallelSplit.jl")
 
 end

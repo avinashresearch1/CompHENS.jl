@@ -107,8 +107,8 @@ Postprocessing after solving stream generation subproblem.
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
 function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level = :quaternary_temperatures; digits = 4, display = true)
-    H_set = prob.all_hot_names # ordered sets
-    C_set = prob.all_cold_names
+    H_set = prob.hot_names # ordered sets
+    C_set = prob.cold_names
     hot_cc, cold_cc = prob.results_dict[level].hot_cc, prob.results_dict[level].cold_cc
 
     Q_match = zeros(Float64, length(C_set), length(H_set))
