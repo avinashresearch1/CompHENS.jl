@@ -55,12 +55,14 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
 
     # Sanity tests
     length(nodes) == 3*length(prob.results_dict[:match_list][stream]) + 4 || error("Incorrect number of nodes generated!")
-    for splitter in superstructure.splitters
-        length(in_edges(splitter, superstructure)) == 1 || error("This function only works with superstructures where each splitter has a single incoming edge")
+    length(edges) == (2 + 4*length(prob.results_dict[:match_list][stream]) + length(prob.results_dict[:match_list][stream])*(length(prob.results_dict[:match_list][stream])-1)) || error("Incorrect number of edges generated!")
+    
+    for splitter in filter(v -> (v isa Splitter), nodes)
+        length(filter(edge -> edge.out == splitter, edges)) == 1 || error("Each splitter only has single incoming edge")
     end
 
-    for mixer in superstructure.mixers
-        length(out_edges(mixer, superstructure)) == 1 || error("This function only works with superstructures where each mixer has a single outgoing edge")
+    for mixer in filter(v -> (v isa Mixer), nodes)
+        length(filter(edge -> edge.in == mixer, edges)) == 1 || error("Each mixer only has a single outgoing edge")
     end
     
     return FloudasCiricGrossmann(nodes, edges)
@@ -94,7 +96,7 @@ end
 
 function define_out_nodes(node::MinorSplitter, nodes::Vector{Node}, superstructure::FloudasCiricGrossmann) 
     out_nodes = filter(nodes) do v # A MinorSplitter only connects to MajorMixer
-        v isa MajorMixer
+        v isa MajorMixer || (v isa MinorMixer && node.match != v.match)
     end
     return out_nodes
 end

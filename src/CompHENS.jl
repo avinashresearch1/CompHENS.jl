@@ -96,4 +96,7 @@ include("Superstructures/classic_superstructures.jl")
 include("Superstructures/FloudasCiricGrossmann.jl")
 include("Superstructures/ParallelSplit.jl")
 
+#export generate_network!, add_stream_variables!, add_stream_constraints!, print_node
+#include("SubProblems/network_generator.jl")
+
 end

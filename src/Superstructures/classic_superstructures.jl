@@ -1,10 +1,11 @@
 """
 $(TYPEDEF)
-This denotes the type of the superstructure used. By definition, the superstructure is defined for a single stream.
+This denotes the abstract type of the superstructure used. By definition, the superstructure is defined for a single stream.
 The general procedure to define a superstructure is as follows:
 1. Define the concrete structure and constructor which typically has two fields: `nodes` and  `edges` and `<: AbstractSuperstructure`
 2. For each type of `Node`, it is generally required to specify methods for `define_out_nodes`
 3. Define a `construct_superstructure` method that in turn calls the constructor of 1. This allows a user to specify the superstructure for several streams at once. 
+4. Define methods for `add_stream_variables!` and `add_stream_constraints!` that will be called from `generate_network!`
 """
 abstract type AbstractSuperstructure end
 
@@ -13,7 +14,6 @@ $(TYPEDEF)
 Holds stream superstructure types for which the stream has splits.
 """
 abstract type AbstractSplitSuperstructure <: AbstractSuperstructure end 
-
 
 abstract type Node end
 Base.show(io::IO, node::Node) = print(io, "$(node.name)")

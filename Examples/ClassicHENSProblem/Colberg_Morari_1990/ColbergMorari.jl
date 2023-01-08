@@ -36,6 +36,4 @@ EMAT = 2.5
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
 
 
-superstructure = FloudasCiricGrossmann()
-fcg1 = FCGStreams("C1", prob);
 
