@@ -39,7 +39,7 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     # 1. This generates the stream-wise optimization model i.e., each stream gives rise to an OptiNode
     for stream in prob.all_names
         add_stream_variables!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
-        #add_stream_constraints!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
+        add_stream_constraints!(prob.all_dict[stream], streams[stream], overall_network[stream], prob)
     end
 
     #2. Plasmo currently does not allow adding Variables or Objectives to the OptiGraph object (see issue). 
@@ -54,15 +54,23 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
         cold_match_list = prob.results_dict[:match_list][hot]
         @variable(streams[hot], ΔT_upper[cold_match_list] >= EMAT)
         @variable(streams[hot], ΔT_lower[cold_match_list] >= EMAT)
+        @variable(streams[hot], match_objective[cold_match_list])
         for cold in cold_match_list
-            add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])    
+            add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])
+            set_match_objective!(prob.hot_dict[hot], prob.cold_dict[cold], streams[hot], obj_func, prob)  # Necessary because of bug in Plasmo in parsing generators.  
         end
-        #add_stream_objective!(prob.hot_dict[hot], streams[hot], obj_func, prob)
+        add_stream_objective!(prob.hot_dict[hot], streams[hot], obj_func, prob)
     end
 
     @variable(streams["H1"], strm_obj_fn)
-    @NLconstraint(streams["H1"], streams["H1"][:strm_obj_fn] == sum(((2/(streams["H1"][:ΔT_upper][cold] + streams["H1"][:ΔT_lower][cold]))) for cold in prob.results_dict[:match_list]["H1"]))
-    @objective(streams["H1"], Min, streams["H1"][:strm_obj_fn])        
+    @NLconstraint(streams["H1"], streams["H1"][:strm_obj_fn] == sum(((2/(streams["H1"][:ΔT_upper][cold] + streams["H1"][:ΔT_lower][cold]))*prob.results_dict[:Q][cold, "H1"]) for cold in prob.results_dict[:match_list]["H1"]))
+    @objective(streams["H1"], Min, streams["H1"][:strm_obj_fn])    
+    
+    
+
+    using Ipopt
+    set_optimizer(HEN, Ipopt.Optimizer)
+    optimize!(HEN)
 
 
 
@@ -189,12 +197,21 @@ end
 
 """
 $(TYPEDEF) 
+Sets the objective of a match.
+"""
+function set_match_objective!(hot::Union{HotStream, SimpleHotUtility}, cold::Union{ColdStream, SimpleColdUtility}, hot_prob::OptiNode, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem)
+    U_ij = U(hot, cold)
+    Q_ij = prob.results_dict[:Q][cold.name, hot.name]
+    coeff = 2*Q_ij/U_ij
+    @NLconstraint(hot_prob, hot_prob[:match_objective][cold.name] == coeff/(hot_prob[:ΔT_upper][cold.name] + hot_prob[:ΔT_lower][cold.name])) # Necessary to avoid the parsing error.
+end
+
+"""
+$(TYPEDEF) 
 Function used to set the objective of each hot stream problem. The objective of the network generation problem is a linear combination of objectives of hot stream problems.
 """
 function add_stream_objective!(hot::Union{HotStream, SimpleHotUtility}, hot_prob::OptiNode, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem)
-    @variable(hot_prob, stream_obj_fn)
-    @NLconstraint(hot_prob, hot_prob[:stream_obj_fn] == sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))
-    @objective(hot_prob, Min, hot_prob[:stream_obj_fn])
+    @objective(hot_prob, Min, sum(hot_prob[:match_objective]))
     #@NLobjective(hot_prob, Min, sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))     
     # @NLobjective(hot_prob, Min, sum(prob.results_dict[:Q][cold, hot.name] for cold in prob.results_dict[:match_list][hot.name]))
     # Currently, with Plasmo need to set as constraint, since @NLobjective is not supported.
