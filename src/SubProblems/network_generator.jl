@@ -14,6 +14,12 @@ struct AreaArithmeticMean <: NetworkObjective end
 
 """
 $(TYPEDEF) 
+Minimizes total network area. Uses Paterson formula to approximate LMTD. 
+"""
+struct AreaPaterson <: NetworkObjective end
+
+"""
+$(TYPEDEF) 
 Minimizes total network cost using specified economies of scale. Uses Paterson formula to approximate LMTD. 
 """
 struct CostScaledPaterson <: NetworkObjective end
@@ -25,7 +31,7 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
 """
 #function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
     #verbose && @info "Solving the Network Generation subproblem"
-    obj_func = AreaArithmeticMean()
+    obj_func = AreaPaterson()
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :match_list) || error("Match list data not available. Solve corresponding subproblem first.")
@@ -59,7 +65,7 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
             add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])
             set_match_objective!(prob.hot_dict[hot], prob.cold_dict[cold], streams[hot], obj_func, prob)  # Necessary because of bug in Plasmo in parsing generators.  
         end
-        add_stream_objective!(prob.hot_dict[hot], streams[hot], obj_func, prob)
+        add_stream_objective!(prob.hot_dict[hot], streams[hot], prob)
     end
 
     @variable(streams["H1"], strm_obj_fn)
@@ -68,8 +74,13 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     
     
 
+    using MadNLP, MadNLPGraph, Plasmo
+    MadNLP.optimize!(HEN; print_level=MadNLP.DEBUG, max_iter=100)
     using Ipopt
-    set_optimizer(HEN, Ipopt.Optimizer)
+    #optimize with Ipopt
+    set_optimizer(HEN,Ipopt.Optimizer)
+    optimize!(HEN)
+    
     optimize!(HEN)
 
 
@@ -96,7 +107,6 @@ function add_stream_variables!(stream::AbstractUtility, stream_prob::OptiNode, s
     # No `f` for utilities.
     @variable(stream_prob, 0 <= t[superstructure.edges])
 end
-
 
 """
 $(TYPEDEF)
@@ -208,9 +218,20 @@ end
 
 """
 $(TYPEDEF) 
+Sets the objective of a match.
+"""
+function set_match_objective!(hot::Union{HotStream, SimpleHotUtility}, cold::Union{ColdStream, SimpleColdUtility}, hot_prob::OptiNode, obj_func::AreaPaterson, prob::ClassicHENSProblem)
+    U_ij = U(hot, cold)
+    Q_ij = prob.results_dict[:Q][cold.name, hot.name]
+    coeff = Q_ij/U_ij
+    @NLconstraint(hot_prob, hot_prob[:match_objective][cold.name] == coeff/(((2/3)*(hot_prob[:ΔT_upper][cold.name]*hot_prob[:ΔT_lower][cold.name])^0.5) - (1/6)*(hot_prob[:ΔT_upper][cold.name] + hot_prob[:ΔT_lower][cold.name]))) # Necessary to avoid the parsing error.
+end
+
+"""
+$(TYPEDEF) 
 Function used to set the objective of each hot stream problem. The objective of the network generation problem is a linear combination of objectives of hot stream problems.
 """
-function add_stream_objective!(hot::Union{HotStream, SimpleHotUtility}, hot_prob::OptiNode, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem)
+function add_stream_objective!(hot::Union{HotStream, SimpleHotUtility}, hot_prob::OptiNode, prob::ClassicHENSProblem)
     @objective(hot_prob, Min, sum(hot_prob[:match_objective]))
     #@NLobjective(hot_prob, Min, sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))     
     # @NLobjective(hot_prob, Min, sum(prob.results_dict[:Q][cold, hot.name] for cold in prob.results_dict[:match_list][hot.name]))

@@ -33,6 +33,25 @@ EMAT = 2.5
 
 # 7. Network generation:
 # Specify which superstructure to use for each stream
+using Alpine
+const alpine = JuMP.optimizer_with_attributes(
+    Alpine.Optimizer,
+    # "minlp_solver" => minlp_solver,
+    "nlp_solver" => JuMP.optimizer_with_attributes(
+        Ipopt.Optimizer,
+        MOI.Silent() => true,
+        "sb" => "yes",
+        "max_iter" => Int(1E4),
+    ),
+    "mip_solver" => JuMP.optimizer_with_attributes(
+        HiGHS.Optimizer,
+        "presolve" => "on",
+        "log_to_console" => false,
+    ),
+    "presolve_bt" => true,
+    "apply_partitioning" => true,
+    "partition_scaling_factor" => 10,
+)
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
 
 
