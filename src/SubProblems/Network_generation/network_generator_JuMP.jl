@@ -1,5 +1,6 @@
 using JuMP
 
+
 """
 $(TYPEDEF) 
 Holds approximations and approaches to deal with nonconvexities in the objective of the network optimization problem: In particular, approaches related to nonconvexities in LMTD approximation and economies of scale. 
@@ -30,8 +31,8 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-#function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, cost_coeff, scaling_coeff)
-    #verbose && @info "Solving the Network Generation subproblem"
+function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 50.0, optimizer, verbose = false, cost_coeff, scaling_coeff)
+    verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
@@ -86,8 +87,14 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     end
 
 
-    set_objective_func!(model, match_list, CostScaledPaterson(), prob; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff)
+    set_objective_func!(model, match_list, obj_func, prob; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff)
 
+    set_optimizer(model, optimizer)
+    #set_optimizer_attribute(model, "time_limit", time_limit)
+
+    optimize!(model)
+    return model
+end
 
 
 """
@@ -169,9 +176,6 @@ function add_stream_constraints!(model::AbstractModel, stream::AbstractUtility, 
     return
 end
 
-s_n, m_n = "H1", "C1"
-hot, cold, overall_prob, hot_prob, cold_prob, hot_superstructure, cold_superstructure = prob.all_dict[s_n], prob.all_dict[m_n], HEN, streams[s_n], streams[m_n], overall_network[s_n], overall_network[m_n]  
-
 """
 $(TYPEDEF) 
 Function used to set the ΔT_upper and ΔT_lower to appropriate temperatures.
@@ -195,14 +199,11 @@ function add_match_feasibility_constraints!(model::AbstractModel, hot::Union{Hot
    @constraint(model, model[:ΔT_lower][(hot.name, cold.name)] ==  model[:t][(hot.name, hot_hx_out_edge)] - model[:t][(cold.name, cold_hx_in_edge)])
 end   
 
-set_objective_func!(model, matches, cost_coeff, scaling_coeff, obj_func)
-
-
 """
 $(TYPEDEF) 
 Function used to set the objective of each hot stream problem.
 """
-function set_objective_func!(model::AbstractModel, matches, obj_func::CostScaledPaterson, prob::ClassicHENSProblem; U_dict, cost_coeff = 1.0, scaling_coeff = 1)
+function set_objective_func!(model::AbstractModel, match_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem; U_dict, cost_coeff = 1.0, scaling_coeff = 1)
     @NLobjective(model, Min, sum(cost_coeff*((1/((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 - (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
 end
 

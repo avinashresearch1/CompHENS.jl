@@ -5,6 +5,7 @@ using Plots
 using JuMP
 using HiGHS
 using Test
+using GAMS
 
 exportall(CompHENS)
 
@@ -35,6 +36,13 @@ EMAT = 2.5
 obj_func = CostScaledPaterson()
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
 cost_coeff, scaling_coeff = 670, 0.83
+optimizer = JuMP.optimizer_with_attributes(
+    GAMS.Optimizer,
+    "NLP" => "ANTIGONE",
+    GAMS.ResLim() => 50.0
+)
+
+generate_network!(prob, EMAT, overall_network; obj_func = CostScaledPaterson(), optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff)
 
 #=
 using Alpine
