@@ -1,3 +1,5 @@
+#= Commented out for now. Nonlinear objectives not robust enough with Plasmo.
+
 using Plasmo
 
 """
@@ -278,3 +280,4 @@ Prints the optimization model for the stream
 function print_stream_prob(stream_prob::OptiNode)
     print(jump_model(stream_prob))
 end
+=#

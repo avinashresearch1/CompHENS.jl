@@ -29,10 +29,14 @@ print_min_utils_pinch_points(prob)
 # 6. Generate stream matches
 EMAT = 2.5
 @time generate_stream_matches!(prob, EMAT; add_units = 1)
-#print_HLD(prob)
 
 # 7. Network generation:
 # Specify which superstructure to use for each stream
+obj_func = CostScaledPaterson()
+overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
+cost_coeff, scaling_coeff = 670, 0.83
+
+#=
 using Alpine
 const alpine = JuMP.optimizer_with_attributes(
     Alpine.Optimizer,
@@ -52,7 +56,6 @@ const alpine = JuMP.optimizer_with_attributes(
     "apply_partitioning" => true,
     "partition_scaling_factor" => 10,
 )
-overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
-
+=#
 
 

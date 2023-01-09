@@ -121,6 +121,10 @@ function U(hot_stream::Union{HotStream, SimpleHotUtility}, cold_stream::Union{Co
     return max(u_ij, smallest_value) # Numerically don't want to return a 0.
 end
 
+function U(hot_stream::String, cold_stream::String, prob::ClassicHENSProblem)
+    U(prob.all_dict[hot_stream], prob.all_dict[cold_stream])
+end
+
 """
 $(TYPEDSIGNATURES)
 Returns a tight bound for the big-M coefficients i.e. UBD for heat transfer between `hot_stream` and  `cold_stream`. Can only be done after solution of minimum utilities subproblem.
