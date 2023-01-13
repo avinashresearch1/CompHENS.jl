@@ -28,7 +28,7 @@ ylims!((300,700))
 
 # 5. Solve minimum utilities problem
 
-@time solve_minimum_utilities_subproblem!(prob)
+@time solve_minimum_utilities_subproblem!(prob; optimizer = BARON.Optimizer, verbose = true, presolve = false)
 print_min_utils_pinch_points(prob)
 @test prob.pinch_points == [(517.0, 497.0)]
 @test isapprox(prob.hot_utilities_dict["ST"].Q, 244.13; atol = 1)
