@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [deps]
 Alpine = "07493b3f-dabb-5b16-a503-4139292d7dd4"
+BARON = "2e2ca445-9e14-5b13-8677-4410f177f82b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 GAMS = "1ca51c6a-1b4d-4546-9ae1-53e0a243ab12"

@@ -8,21 +8,21 @@ using Test
 
 using BARON
 
-exportall(CompHENS)
+#exportall(CompHENS)
 
 # 2. Specify path to xlsx file
-file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
+file_path_xlsx = joinpath(@__DIR__, "TEP4215_Assignment_2.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
-prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
+prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 10.0, verbose = true)
+
+#intervals = CompHENS.generate_transshipment_intervals(prob)
+#print_full(intervals)
 
 # 4. Solve minimum utilities problem
-
 @time solve_minimum_utilities_subproblem!(prob)
+
 print_min_utils_pinch_points(prob)
-@test prob.pinch_points == [(517.0, 497.0)]
-@test isapprox(prob.hot_utilities_dict["ST"].Q, 244.13; atol = 1)
-@test isapprox(prob.cold_utilities_dict["CW"].Q, 172.6; atol = 1)
 
 # 5. Solve the minimum number of units subproblem:
 @time solve_minimum_units_subproblem!(prob)
@@ -62,5 +62,6 @@ const alpine = JuMP.optimizer_with_attributes(
     "partition_scaling_factor" => 10,
 )
 =#
+
 
 

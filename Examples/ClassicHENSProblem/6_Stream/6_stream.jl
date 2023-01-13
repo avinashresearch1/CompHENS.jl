@@ -11,7 +11,7 @@ using BARON
 exportall(CompHENS)
 
 # 2. Specify path to xlsx file
-file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
+file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_SimpleExample.xlsx")
 
 # 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
