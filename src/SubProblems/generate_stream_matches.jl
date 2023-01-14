@@ -66,8 +66,8 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
     sum(sum(y[i, j] for i in H_set) for j in C_set) == prob.results_dict[:min_units] + add_units)
     
     @objective(model, Min,
-    sum(sum(sum(sum((Q[i, m, j, n]* is_feasible(m, n; EMAT =  EMAT)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
-    
+    sum(sum(sum(sum((Q[i, m, j, n]* is_feasible(m, n; EMAT =  EMAT)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n; verbose = verbose))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
+
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
     presolve && set_optimizer_attribute(model, "presolve", "on")
@@ -120,7 +120,7 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     for i in H_set
         for j in C_set
             y[j, i] = round(value(model[:y][i,j]); digits = 0)
-            Q[j, i] = round(sum(sum(value(model[:Q][i,m,j,n]) for m in hot_cc) for n in cold_cc); digits = digits)
+            Q[j, i] = sum(sum(value(model[:Q][i,m,j,n]) for m in hot_cc) for n in cold_cc)
         end
     end
 

@@ -30,7 +30,7 @@ print_min_utils_pinch_points(prob)
 @test prob.min_units == 5
 
 # 6. Generate stream matches
-EMAT = prob.ΔT_min/8 
+EMAT = prob.ΔT_min/4 
 add_units = 2
 @time generate_stream_matches!(prob, EMAT; add_units = add_units, digits = 8, verbose  = true)
 prob.results_dict[:Q]
@@ -39,22 +39,28 @@ prob.results_dict[:Q]
 # Specify which superstructure to use for each stream
 obj_func = CostScaledPaterson()
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, FloudasCiricGrossmann(), prob))
-base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
+base_cost, cost_coeff, scaling_coeff = 4000, 500, 1#0.83
 
 #using Ipopt
 #optimizer = Ipopt.Optimizer 
 optimizer = BARON.Optimizer
 
-generate_network!(prob, EMAT, overall_network; obj_func = CostScaledPaterson(), optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+#EMAT = -1
+#obj_func = AreaArithmeticMean()
+#obj_func = Tupper()
+
+generate_network!(prob, EMAT, overall_network; obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 model = prob.results_dict[:network_gen_model]
+print(model)
 file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Result_Plots/Gundersen_4_stream.pdf"
 
 plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
-stream = "C2"
-CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
+#stream = "C2"
+#CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
 value.(model[:ΔT_upper])
 value.(model[:ΔT_lower])
 value.(model[:T_LMTD])
+get_design_area(prob)
 # 
 
 #print(model)

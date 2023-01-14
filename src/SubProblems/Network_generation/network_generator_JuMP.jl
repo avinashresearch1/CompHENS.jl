@@ -24,13 +24,18 @@ Minimizes total network cost using specified economies of scale. Uses Paterson f
 """
 struct CostScaledPaterson <: NetworkObjective end
 
+"""
+$(TYPEDEF) 
+Maximizes ΔT_upper. Only for feasibility debugging.
+"""
+struct Tupper <: NetworkObjective end
 
 """
 $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 200.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
+function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 20.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -59,8 +64,11 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
     end
 
     # 1. Declaring the stream-wise variables
-    @variable(model, 0 <= t[all_e_tuple_vec])
-    @variable(model, 0 <= f[stream_e_tuple_vec])
+    @variable(model, 0.0 <= t[all_e_tuple_vec])
+    @variable(model, 0.0 <= f[stream_e_tuple_vec])
+
+    #@variable(model, t[all_e_tuple_vec])
+    #@variable(model, f[stream_e_tuple_vec])
 
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
@@ -69,29 +77,34 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
 
     
     # 3. Setting the variables and constraints for the matches
+   
     match_list = Tuple[]
     for hot in prob.hot_names
         for cold in prob.results_dict[:match_list][hot]
             push!(match_list, (hot,cold))
         end
     end
-    @variable(model, ΔT_upper[match_list] >= EMAT)
-    @variable(model, ΔT_lower[match_list] >= EMAT)
+    
+    @variable(model, ΔT_upper[match_list])
+    @variable(model, ΔT_lower[match_list])
     
     U_dict = Dict()
     for match in match_list
+        set_lower_bound(model[:ΔT_upper][match], EMAT)
+        set_lower_bound(model[:ΔT_lower][match], EMAT)
         hot, cold = prob.all_dict[match[1]], prob.all_dict[match[2]]
         add_match_feasibility_constraints!(model, hot, cold, overall_network[hot.name], overall_network[cold.name])
         # Used to avoid `_parse_NL_expr_runtime` error with U as a function.
         push!(U_dict, match => U(hot, cold))
     end
+    
 
     
     set_objective_func!(model, match_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
 
     set_optimizer(model, optimizer)
     set_optimizer_attribute(model, "MaxTime", time_limit)
-    set_optimizer_attribute(model, "AbsConFeasTol", 1E-2)
+    set_optimizer_attribute(model, "AbsConFeasTol", 1)
 
     save_model && push!(prob.results_dict, :network_gen_model => model)
 
@@ -118,9 +131,9 @@ function add_stream_constraints!(model::AbstractModel, stream::AbstractStream, s
     @constraint(model, model[:f][(stream.name, SO_BS_edge)] == stream.mcp)
     @constraint(model, model[:t][(stream.name, SO_BS_edge)] == stream.T_in)
 
-    BM_SK_edge = only(in_edges(superstructure.sink[1], superstructure))
-    @constraint(model, model[:f][(stream.name, BM_SK_edge)] == stream.mcp)
-    @constraint(model, model[:t][(stream.name, BM_SK_edge)] == stream.T_out)  
+    #BM_SK_edge = only(in_edges(superstructure.sink[1], superstructure))
+    #@constraint(model, model[:f][(stream.name, BM_SK_edge)] == stream.mcp)
+    #@constraint(model, model[:t][(stream.name, BM_SK_edge)] == stream.T_out)  
 
     
     # 3. Adding mass balance constraints for all nodes except `Source` and `Sink`
@@ -215,11 +228,42 @@ $(TYPEDEF)
 Function used to set the objective of each hot stream problem.
 """
 function set_objective_func!(model::AbstractModel, match_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
-    @variable(model, T_LMTD[match_list] >= EMAT)
+    @variable(model, T_LMTD[match_list])
     for match in match_list
-        @NLconstraint(model, model[:T_LMTD][match] ==  ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 - (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
+        #set_lower_bound(model[:T_LMTD][match], 0.0)
+        @NLconstraint(model, model[:T_LMTD][match] == smallest_value + ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 + (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
     end
-    @NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(smallest_value+model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
+    #@NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
+end
+
+"""
+$(TYPEDEF) 
+Function used to set the objective of each hot stream problem.
+"""
+function set_objective_func!(model::AbstractModel, match_list, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    @variable(model, T_LMTD[match_list])
+    for match in match_list
+        #set_lower_bound(model[:T_LMTD][match], 0.0)
+        @NLconstraint(model, model[:T_LMTD][match] ==  ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
+    end
+    @NLobjective(model, Max, sum(model[:T_LMTD][match] for match in match_list))
+
+    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in match_list))
+end
+
+"""
+$(TYPEDEF) 
+Function used to set the objective of each hot stream problem.
+"""
+function set_objective_func!(model::AbstractModel, match_list, obj_func::Tupper, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    #@variable(model, T_LMTD[match_list])
+    #for match in match_list
+        #set_lower_bound(model[:T_LMTD][match], 0.0)
+     #   @NLconstraint(model, model[:T_LMTD][match] ==  ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
+    #end
+    @NLobjective(model, Max, sum(model[:ΔT_upper][match] + model[:ΔT_lower][match] for match in match_list))
+
+    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in match_list))
 end
 
 """
