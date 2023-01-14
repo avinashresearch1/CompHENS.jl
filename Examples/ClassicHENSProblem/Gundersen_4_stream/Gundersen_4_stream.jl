@@ -30,9 +30,9 @@ print_min_utils_pinch_points(prob)
 @test prob.min_units == 5
 
 # 6. Generate stream matches
-EMAT = prob.ΔT_min/8 
+EMAT = prob.ΔT_min/2 
 add_units = 2
-@time generate_stream_matches!(prob, EMAT; add_units = add_units, digits = 8, verbose  = true)
+@time generate_stream_matches!(prob, EMAT; add_units = add_units, digits = 12, verbose  = true)
 prob.results_dict[:Q]
 
 # 7. Network generation:
@@ -55,6 +55,8 @@ CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
 value.(model[:ΔT_upper])
 value.(model[:ΔT_lower])
 value.(model[:T_LMTD])
+prob.results_dict[:areas]
+get_design_area(prob)
 # 
 
 #print(model)

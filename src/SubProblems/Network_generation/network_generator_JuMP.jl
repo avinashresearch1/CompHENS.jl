@@ -30,7 +30,7 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 200.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
+function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 20.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -50,6 +50,7 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
         end
     end
 
+    #=
     # Tuple set with only streams (not utilities) and edges e
     stream_e_tuple_vec = []
     for stream in prob.stream_names
@@ -57,10 +58,11 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
             push!(stream_e_tuple_vec, (stream, edge))
         end
     end
+    =#
 
     # 1. Declaring the stream-wise variables
-    @variable(model, 0 <= t[all_e_tuple_vec])
-    @variable(model, 0 <= f[stream_e_tuple_vec])
+    @variable(model, 0.0 <= t[all_e_tuple_vec])
+    @variable(model, 0.0 <= f[all_e_tuple_vec])
 
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
@@ -85,6 +87,7 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
         # Used to avoid `_parse_NL_expr_runtime` error with U as a function.
         push!(U_dict, match => U(hot, cold))
     end
+    verbose && println(U_dict)
 
     
     set_objective_func!(model, match_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
@@ -108,21 +111,20 @@ Adds constraints for each `stream`.
 function add_stream_constraints!(model::AbstractModel, stream::AbstractStream, superstructure::AbstractSplitSuperstructure, prob::ClassicHENSProblem)
     # 1. Add bounds on the `t` and `f` variables
     for edge in superstructure.edges
-        set_lower_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][1])
-        set_upper_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][2])
-        set_upper_bound(model[:f][(stream.name, edge)], stream.mcp)
+        #set_lower_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][1])
+        #set_upper_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][2])
+        #set_upper_bound(model[:f][(stream.name, edge)], stream.mcp)
     end
  
     # 2. Source and Sink constraints on `t` and `f`
-    SO_BS_edge = only(out_edges(superstructure.source[1], superstructure))
+    SO_BS_edge = only(out_edges(only(superstructure.source), superstructure))
     @constraint(model, model[:f][(stream.name, SO_BS_edge)] == stream.mcp)
     @constraint(model, model[:t][(stream.name, SO_BS_edge)] == stream.T_in)
 
-    BM_SK_edge = only(in_edges(superstructure.sink[1], superstructure))
-    @constraint(model, model[:f][(stream.name, BM_SK_edge)] == stream.mcp)
-    @constraint(model, model[:t][(stream.name, BM_SK_edge)] == stream.T_out)  
+    #BM_SK_edge = only(in_edges(only(superstructure.sink), superstructure))
+    #@constraint(model, model[:f][(stream.name, BM_SK_edge)] == stream.mcp)
+    #@constraint(model, model[:t][(stream.name, BM_SK_edge)] == stream.T_out)  
 
-    
     # 3. Adding mass balance constraints for all nodes except `Source` and `Sink`
     internal_nodes = filter(superstructure.nodes) do v
         !isa(v, Source) && !isa(v, Sink)
@@ -162,11 +164,36 @@ function add_stream_constraints!(model::AbstractModel, stream::AbstractStream, s
 end
 
 function add_stream_constraints!(model::AbstractModel, stream::AbstractUtility, superstructure::AbstractSplitSuperstructure, prob::ClassicHENSProblem)
-    
+    #=
     for edge in superstructure.edges
-        set_lower_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][1])
-        set_upper_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][2])
+        #set_lower_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][1])
+        #set_upper_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][2])
+        #set_upper_bound(model[:f][(stream.name, edge)], 0.0)
     end
+
+    # 3. Adding mass balance constraints for all nodes except `Source` and `Sink`
+    internal_nodes = filter(superstructure.nodes) do v
+        !isa(v, Source) && !isa(v, Sink)
+    end
+    for node in internal_nodes
+        @constraint(model, sum(model[:f][(stream.name, edge)] for edge in in_edges(node, superstructure)) == sum(model[:f][(stream.name, edge)] for edge in out_edges(node, superstructure)))
+    end
+
+    # 4. Setting equal temperatures for all streams entering and leaving a splitter
+    for splitter in superstructure.splitters
+        edge_in = only(in_edges(splitter, superstructure)) # Only one in edge allowed
+        for out_edge in out_edges(splitter, superstructure)
+            @constraint(model, model[:t][(stream.name, out_edge)] == model[:t][(stream.name, edge_in)])
+        end
+    end
+    =#
+    #=
+    # 5. Setting mixer energy balance
+    for mixer in superstructure.mixers
+        edge_out = only(out_edges(mixer, superstructure)) # Only one out edge allowed
+        @NLconstraint(model, sum(model[:f][(stream.name, in_edge)]*model[:t][(stream.name, in_edge)] for in_edge in in_edges(mixer, superstructure)) == model[:f][(stream.name, edge_out)]*model[:t][(stream.name, edge_out)])
+    end
+    =#
     #=
     # Only set edge temperatures for LMTD. All edge temperature before the HX are equal to Source temperature. All after HX are set at Sink temperature.   
     # Hack is to set all edges connected to MajorSplitter at same temperature as stream.T_in, and all to MajorMixer at same temperature as stream.T_out.
@@ -194,7 +221,7 @@ Function used to set the ΔT_upper and ΔT_lower to appropriate temperatures.
 function add_match_feasibility_constraints!(model::AbstractModel, hot::Union{HotStream, SimpleHotUtility}, cold::Union{ColdStream, SimpleColdUtility}, hot_superstructure::AbstractSuperstructure, cold_superstructure::AbstractSuperstructure)
     hot_HX = only(filter(hot_superstructure.hxs) do v
          v.match == cold.name
-    end) # Should only be 1. Add check?
+    end) # Should only be 1.
     hot_hx_in_edge, hot_hx_out_edge  = only(in_edges(hot_HX, hot_superstructure)), only(out_edges(hot_HX, hot_superstructure))
 
     # Match is always a cold stream or cold utility
@@ -219,7 +246,7 @@ function set_objective_func!(model::AbstractModel, match_list, obj_func::CostSca
     for match in match_list
         @NLconstraint(model, model[:T_LMTD][match] ==  ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 - (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
     end
-    @NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(smallest_value+model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
+    #@NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(smallest_value+model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
 end
 
 """

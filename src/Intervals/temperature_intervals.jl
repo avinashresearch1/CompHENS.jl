@@ -528,7 +528,8 @@ function LMTD(hot_interval::TemperatureInterval, cold_interval::TemperatureInter
     end
 
     if isapprox(ΔT_upper, ΔT_lower; atol = smallest_value) # For numerical robustness when temp differences are similar.
-        return ΔT_upper
+        verbose && @warn "Hot: $(hot_interval) and Cold: $(cold_interval) have similar ΔT"
+        return max(ΔT_upper, smallest_value)
     end
     lmtd = (ΔT_upper - ΔT_lower)/log(ΔT_upper/ΔT_lower)
 
