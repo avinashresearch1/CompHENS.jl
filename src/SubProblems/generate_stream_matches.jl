@@ -172,7 +172,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transportation problem presented in Anantharaman 2010 P. 132 to generate stream matches. 
 
 """
-function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; level = :quaternary_temperatures, add_units = 1, time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
@@ -254,7 +254,7 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
     # Sets the pseudo area for each time period t
     for t in periods
         @constraint(model, 
-        pseudo_area[t] == sum(sum(sum(sum((Q[(i, m, j, n, t)]* is_feasible(m, n; EMAT =  EMAT)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n))) for n in cold_cc[t]) for j in C_set) for m in hot_cc[t]) for i in H_set)
+        pseudo_area[t] == sum(sum(sum(sum((Q[(i, m, j, n, t)]* is_feasible(m, n; EMAT =  EMAT)/(U(H_stream_set[i], C_stream_set[j])*LMTD(m, n; verbose = verbose))) for n in cold_cc[t]) for j in C_set) for m in hot_cc[t]) for i in H_set)
         )
     end
     
@@ -275,6 +275,8 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
 
     # Post-processing
     termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
+    post_HLD_matches!(prob, model, level; digits = digits, display = verbose)
+    #=
     y_match = Dict()
     for t in periods
         Q_match = Dict()
@@ -287,19 +289,78 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
         prob.period_streams_dict[t].results_dict[:Q] = Q_match
     end
     prob.results_dict[:y] = y_match
+    =#
 return
 end
 
-#= Deprecated
+"""
+$(TYPEDSIGNATURES)
+
+Postprocessing after solving stream generation subproblem. 
+Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
+"""
+function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::AbstractModel, level = :quaternary_temperatures; digits = 4, display = true)
+    H_set = prob.period_streams_dict[prob.period_names[1]].hot_names # ordered sets
+    C_set = prob.period_streams_dict[prob.period_names[1]].cold_names
+
+    hot_cc, cold_cc = Dict(), Dict()
+    for (k,v) in prob.period_streams_dict
+        push!(hot_cc, k => v.results_dict[level].hot_cc)
+        push!(cold_cc, k => v.results_dict[level].cold_cc)
+    end
+
+    y_match = zeros(Int, length(C_set), length(H_set))
+    y = NamedArray(y_match, (C_set, H_set))
+    for t in prob.period_names
+        Q_match = zeros(Float64, length(C_set), length(H_set))
+        Q = NamedArray(Q_match, (C_set, H_set))
+        for i in H_set
+            for j in C_set
+                y[j,i] = round(value(model[:y][i,j]); digits = 0)
+                Q[j,i] = sum(sum(value.(model[:Q][(i,m,j,n,t)]) for m in hot_cc[t]) for n in cold_cc[t])
+            end
+        end
+        prob.period_streams_dict[t].results_dict[:Q] = Q
+    end
+    prob.results_dict[:y] = y
+    
+
+    for t in prob.period_names
+        match_list = Dict{String, Vector{String}}()
+        for i in H_set
+            matches = filter(C_set) do j
+                round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0
+            end
+            push!(match_list, i => matches)
+        end
+        for j in C_set
+            matches = filter(H_set) do i
+                round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0
+            end 
+            push!(match_list, j => matches)
+        end
+        # Check consistency. Should it be <=
+        sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)) <= prob.results_dict[:min_units] + prob.results_dict[:add_units] || error("Inconsistency in stream match results. You have likely added too many results and the problem is infeasible.")
+        prob.period_streams_dict[t].results_dict[:match_list] = match_list
+    end
+    return
+end
+
 """
 Displays HLD for Multiperiod problem
 """
 function print_HLD(prob::MultiPeriodFlexibleHENSProblem)
-    for k in prob.period_names
-        println("PROBLEM $(k)")
-        print_HLD(prob.period_streams_dict[k])
+    println("Overall Units")
+    @show prob.results_dict[:y]
+    println()
+    for t in prob.period_names
+        println("PROBLEM $(t)")
+        println("HLD \n")
+        @show prob.period_streams_dict[t].results_dict[:Q]
+        #println("Match list")
+        #@show prob.period_streams_dict[t].results_dict[:match_list]
         print("\n")
     end
     return
 end
-=#
+
