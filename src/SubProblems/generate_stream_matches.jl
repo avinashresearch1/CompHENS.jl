@@ -9,7 +9,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transportation problem presented in Anantharaman 2010 P. 132 to generate stream matches. 
 
 """
-function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = 1, time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
+function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
@@ -95,7 +95,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
     =#
 
     # Post-processing
-    termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
+    termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try changing number of units. \n")
     post_HLD_matches!(prob, model, level; digits = digits, display = verbose)
 return
 end
@@ -116,7 +116,6 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     Q = NamedArray(Q_match, (C_set, H_set))
     y = NamedArray(y_match, (C_set, H_set))
     
-    
     for i in H_set
         for j in C_set
             y[j, i] = round(value(model[:y][i,j]); digits = 0)
@@ -126,6 +125,8 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
 
     display && @show y
     display && @show Q
+
+
 
     match_list = Dict{String, Vector{String}}()
     for i in H_set
@@ -140,6 +141,9 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     prob.results_dict[:y] = y
     prob.results_dict[:Q] = Q
     prob.results_dict[:match_list] = match_list
+
+    # Check consistency
+    sum(all.(round.(Q; digits = 0) .> 0.0)) == prob.results_dict[:min_units] + prob.results_dict[:add_units] || error("Inconsistency in stream match results. You have likely added too many results and the problem is infeasible.")
     return
 end
 
