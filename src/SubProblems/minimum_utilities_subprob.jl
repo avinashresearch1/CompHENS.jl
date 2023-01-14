@@ -7,7 +7,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_1983 to determine the minimum utility cost.
 Returns:
 """
-function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, save_model = false)
     verbose && @info "Solving the minimum utilities subproblem"
     intervals = generate_transshipment_intervals(prob)
     model = Model()
@@ -40,6 +40,7 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limi
         @show dual_status(model)
     end
 
+    save_model && push!(prob.results_dict, :min_utils_model => model)
 
     # Post-processing
     pinch_points = Tuple[]
