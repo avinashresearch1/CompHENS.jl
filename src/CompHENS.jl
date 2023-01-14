@@ -57,7 +57,7 @@ abstract type AbstractSubProblemSolution end
 export AbstractSynthesisProblem, AbstractSynthesisAlgorithm, AbstractSolution  
 
 # Define own suitable for HENS.
-const smallest_value = 1e-8
+const smallest_value = 1e-12
 export smallest_value
 
 # Holds structures for streams
@@ -96,7 +96,8 @@ include("Superstructures/classic_superstructures.jl")
 include("Superstructures/FloudasCiricGrossmann.jl")
 include("Superstructures/ParallelSplit.jl")
 
-export generate_network!
+export generate_network!, postprocess_network!, plot_HEN_streamwise, print_stream_results, get_design_area 
 include("SubProblems/Network_generation/network_generator_JuMP.jl")
+include("SubProblems/Network_generation/network_postprocess.jl")
 
 end

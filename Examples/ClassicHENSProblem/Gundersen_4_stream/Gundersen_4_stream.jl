@@ -1,6 +1,7 @@
 # Workflow using XLSX input:
 # 1. Import necessary packages:
 @time using CompHENS
+
 using Plots
 using JuMP
 using HiGHS
@@ -24,23 +25,37 @@ prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 10.0, verbose = true)
 
 print_min_utils_pinch_points(prob)
 
-# 5. Solve the minimum number of units subproblem:
+# 5. Solve the minimum number of units subproblem:plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
 @time solve_minimum_units_subproblem!(prob)
 @test prob.min_units == 5
 
 # 6. Generate stream matches
 EMAT = prob.ΔT_min/8 
 add_units = 2
-@time generate_stream_matches!(prob, EMAT; add_units = add_units)
+@time generate_stream_matches!(prob, EMAT; add_units = add_units, digits = 8)
+prob.results_dict[:Q]
 
 # 7. Network generation:
 # Specify which superstructure to use for each stream
 obj_func = CostScaledPaterson()
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, FloudasCiricGrossmann(), prob))
 base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
+
+#using Ipopt
+#optimizer = Ipopt.Optimizer 
 optimizer = BARON.Optimizer
 
 generate_network!(prob, EMAT, overall_network; obj_func = CostScaledPaterson(), optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+model = prob.results_dict[:network_gen_model]
+file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Result_Plots/Gundersen_4_stream.pdf"
 
+plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
+stream = "C2"
+CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
+value.(model[:ΔT_upper])
+value.(model[:ΔT_lower])
+value.(model[:T_LMTD])
+# 
 
+#print(model)
 

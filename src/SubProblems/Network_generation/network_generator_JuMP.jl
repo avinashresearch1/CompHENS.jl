@@ -30,7 +30,7 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 50.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
+function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 200.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -67,6 +67,7 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
         add_stream_constraints!(model, prob.all_dict[stream], overall_network[stream], prob)
     end
 
+    
     # 3. Setting the variables and constraints for the matches
     match_list = Tuple[]
     for hot in prob.hot_names
@@ -76,7 +77,7 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
     end
     @variable(model, ΔT_upper[match_list] >= EMAT)
     @variable(model, ΔT_lower[match_list] >= EMAT)
-
+    
     U_dict = Dict()
     for match in match_list
         hot, cold = prob.all_dict[match[1]], prob.all_dict[match[2]]
@@ -85,16 +86,18 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
         push!(U_dict, match => U(hot, cold))
     end
 
-
-    set_objective_func!(model, match_list, obj_func, prob; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
+    
+    set_objective_func!(model, match_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
 
     set_optimizer(model, optimizer)
-    #set_optimizer_attribute(model, "time_limit", time_limit)
+    set_optimizer_attribute(model, "MaxTime", time_limit)
+    set_optimizer_attribute(model, "AbsConFeasTol", 1E-2)
 
     save_model && push!(prob.results_dict, :network_gen_model => model)
 
     optimize!(model)
-    return model
+    postprocess_network!(prob, model, match_list)
+    return
 end
 
 
@@ -159,6 +162,7 @@ function add_stream_constraints!(model::AbstractModel, stream::AbstractStream, s
 end
 
 function add_stream_constraints!(model::AbstractModel, stream::AbstractUtility, superstructure::AbstractSplitSuperstructure, prob::ClassicHENSProblem)
+    
     for edge in superstructure.edges
         set_lower_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][1])
         set_upper_bound(model[:t][(stream.name, edge)], prob.results_dict[:T_bounds][stream.name][2])
@@ -210,8 +214,12 @@ end
 $(TYPEDEF) 
 Function used to set the objective of each hot stream problem.
 """
-function set_objective_func!(model::AbstractModel, match_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
-    @NLobjective(model, Min, sum(base_cost + cost_coeff*((1/((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 - (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
+function set_objective_func!(model::AbstractModel, match_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    @variable(model, T_LMTD[match_list] >= EMAT)
+    for match in match_list
+        @NLconstraint(model, model[:T_LMTD][match] ==  ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 - (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
+    end
+    @NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(smallest_value+model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
 end
 
 """
@@ -250,6 +258,7 @@ function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::SimpleHo
     T_LBD = stream.T_out
     return (T_LBD, T_UBD)
 end
+
 
 #=
 From Plasmo file, potentially usefull for other set_objective_func!() methods
