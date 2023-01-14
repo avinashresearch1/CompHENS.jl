@@ -30,7 +30,7 @@ print_min_utils_pinch_points(prob)
 @test prob.min_units == 5
 
 # 6. Generate stream matches
-EMAT = prob.ΔT_min/4 
+EMAT = prob.ΔT_min/2 
 add_units = 2
 @time generate_stream_matches!(prob, EMAT; add_units = add_units, digits = 8, verbose  = true)
 prob.results_dict[:Q]

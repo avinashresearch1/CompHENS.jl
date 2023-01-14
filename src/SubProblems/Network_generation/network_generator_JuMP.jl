@@ -233,7 +233,7 @@ function set_objective_func!(model::AbstractModel, match_list, obj_func::CostSca
         #set_lower_bound(model[:T_LMTD][match], 0.0)
         @NLconstraint(model, model[:T_LMTD][match] == smallest_value + ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 + (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
     end
-    #@NLobjective(model, Min, sum(base_cost + cost_coeff*((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff for match in match_list))
+    @NLobjective(model, Min, sum((base_cost + cost_coeff*((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff) for match in match_list))
 end
 
 """

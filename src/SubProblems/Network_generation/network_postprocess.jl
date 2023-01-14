@@ -38,7 +38,7 @@ function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, ma
         hot, cold = match[1], match[2]
         ΔT_upper = value(model[:ΔT_upper][match]) 
         ΔT_lower = smallest_value + value(model[:ΔT_lower][match])
-        LMTD = (ΔT_upper - ΔT_lower)/(smallest_value + log(ΔT_upper/ΔT_lower))
+        LMTD = (ΔT_upper - ΔT_lower)/(smallest_value + log(ΔT_upper/ΔT_lower)) # Probable numerical issues.
         area = prob.results_dict[:Q][match[2], match[1]]/(LMTD*U(prob.all_dict[hot], prob.all_dict[cold]))
         push!(area_dict, match => area)
     end
