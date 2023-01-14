@@ -2,7 +2,7 @@ using JuMP
 
 """
 $(TYPEDEF) 
-Holds approximations and approaches to deal with nonconvexities in the objective of the network optimization problem: In particular, approaches related to nonconvexities in LMTD approximation and economies of scale. 
+Objects specify objective functions for heat exchanger network design. Holds approximations and approaches to deal with nonconvexities in the objective of the network optimization problem: In particular, approaches related to nonconvexities in LMTD approximation and economies of scale. 
 """
 abstract type NetworkObjective end
 
