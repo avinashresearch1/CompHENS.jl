@@ -7,6 +7,10 @@ using HiGHS
 using XLSX
 using DataFrames
 
+using BARON
+
+exportall(CompHENS)
+
 # 2. Specify path to xlsx file, Construct the appropriate kind of problem: Here it is a `MultiPeriodFlexibleHENSProblem`.
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_FloudasGrossmann.xlsx")
 prob = MultiPeriodFlexibleHENSProblem(file_path_xlsx, 3; verbose = true)
@@ -20,7 +24,8 @@ print_min_utils_pinch_points(prob)
 
 # 5. Solving stream match generator problem
 EMAT = 2.5
-@time generate_stream_matches!(prob, EMAT; add_units = 1, verbose = true)
+prob.results_dict[:add_units] = 1
+@time generate_stream_matches!(prob, EMAT; verbose = true)
 print_HLD(prob)
 
 
