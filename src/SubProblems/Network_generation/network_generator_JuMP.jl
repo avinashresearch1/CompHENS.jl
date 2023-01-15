@@ -35,7 +35,7 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 20.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
+function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 20.0, verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -67,17 +67,12 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
     @variable(model, 0.0 <= t[all_e_tuple_vec])
     @variable(model, 0.0 <= f[stream_e_tuple_vec])
 
-    #@variable(model, t[all_e_tuple_vec])
-    #@variable(model, f[stream_e_tuple_vec])
-
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
         add_stream_constraints!(model, prob.all_dict[stream], overall_network[stream], prob)
     end
-
     
     # 3. Setting the variables and constraints for the matches
-   
     match_list = Tuple[]
     for hot in prob.hot_names
         for cold in prob.results_dict[:match_list][hot]
@@ -110,6 +105,7 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
 
     optimize!(model)
     postprocess_network!(prob, model, match_list)
+    isnothing(output_file) || plot_HEN_streamwise(prob, model, overall_network, output_file; digits = 1)
     return
 end
 
@@ -303,6 +299,25 @@ function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::SimpleHo
     return (T_LBD, T_UBD)
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Generates the Heat Exchanger Network for multiperiod problems.
+    
+- One may change EMAT from period to period
+- The matches y are one for a superset of corresponding positive Q. The overall superstructure one generates is based on the matches y. Thus, one can say have FloudasCiricGrossmann() with 4 match, but the actual number of matches from period to period can vary e.g., some periods can have 3 matches. Thus the superstructure is a superset of possible period matches. This works because the superstructure for 4 matches is a superset of the superstructure for 3 matches.
+- `t , f, LMTD` and actual area can change from season to season.
+- One is still guaranteed to get atleast a feasible solution for the NLP based on the HLDs from multiperiod stream match generator. This is because the design superstructure is a superset of any operational network.
+"""
+function generate_network!(prob::MultiPeriodFlexibleHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), time_limit = 20.0, verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_folder = nothing)
+    for (k,v) in prob.period_streams_dict
+        if !isnothing(output_folder)
+            output_file = "$(output_folder)HEN_$(k).pdf"
+        end 
+        @info "Problem $(k)"
+        generate_network!(v, EMAT; output_file = output_file, verbose = verbose, overall_network = overall_network, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = save_model, time_limit = time_limit)
+    end
+end
 
 #=
 From Plasmo file, potentially usefull for other set_objective_func!() methods

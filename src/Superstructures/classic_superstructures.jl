@@ -62,6 +62,16 @@ function construct_superstructure(streams::Vector{String}, superstructure::Abstr
     end
     return overall_network
 end
+
+function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::MultiPeriodFlexibleHENSProblem; verbose = false)
+    overall_network = Dict{String, AbstractSuperstructure}() # Can potentially use broadcast here. 
+    # Same superstructure for all periods. So using ClassicHENSProblem code. 
+    cprob = prob.period_streams_dict[prob.period_names[1]]
+    for stream in streams 
+        push!(overall_network, stream => construct_superstructure(stream, superstructure, cprob; verbose = verbose))
+    end
+    return overall_network
+end
         
 
 """

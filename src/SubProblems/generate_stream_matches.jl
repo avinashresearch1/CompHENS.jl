@@ -320,26 +320,26 @@ function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::Abstract
                 Q[j,i] = sum(sum(value.(model[:Q][(i,m,j,n,t)]) for m in hot_cc[t]) for n in cold_cc[t])
             end
         end
+        # All periods must have the same y and match_list. The same matrix y is copied to each period's `results_dict` in order to allow reuse of `ClassicHENSProblem` code. 
+        # y is also placed in the `results_dict` of the overall prob.
+        # The `Q` values are usually different from period to period. 
+        prob.period_streams_dict[t].results_dict[:y] = y
         prob.period_streams_dict[t].results_dict[:Q] = Q
     end
-    prob.results_dict[:y] = y
+    prob.results_dict[:y] = y # Remeber assignment not deep copy. Changing one changes all.
     
+    match_list = Dict{String, Vector{String}}()
+    for i in H_set
+        matches = filter(j -> y[j,i] == 1, C_set)
+        push!(match_list, i => matches)
+    end
+    for j in C_set
+        matches = filter(i -> y[j,i] == 1, H_set)
+        push!(match_list, j => matches)
+    end
 
+    prob.results_dict[:match_list] = match_list
     for t in prob.period_names
-        match_list = Dict{String, Vector{String}}()
-        for i in H_set
-            matches = filter(C_set) do j
-                round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0
-            end
-            push!(match_list, i => matches)
-        end
-        for j in C_set
-            matches = filter(H_set) do i
-                round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0
-            end 
-            push!(match_list, j => matches)
-        end
-        # Check consistency. Should it be <=
         sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)) <= prob.results_dict[:min_units] + prob.results_dict[:add_units] || error("Inconsistency in stream match results. You have likely added too many results and the problem is infeasible.")
         prob.period_streams_dict[t].results_dict[:match_list] = match_list
     end
