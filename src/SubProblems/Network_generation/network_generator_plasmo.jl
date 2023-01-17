@@ -36,7 +36,7 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     obj_func = AreaPaterson()
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
-    haskey(prob.results_dict, :match_list) || error("Match list data not available. Solve corresponding subproblem first.")
+    haskey(prob.results_dict, :HLD_list) || error("Match list data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :T_bounds) || generate_temperature_bounds!(prob)
 
     #y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
@@ -59,11 +59,11 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     # iii. `add_stream_objective()` Adds an area objective to ONLY the hot streams and utilities NOT cold streams and objectives. This prevents double-counting area when the overall objective is taken as linear combination of `OptiNode` objectives.  
     # Depending on the type of the `LMTD_approx` kwarg, different approximations may be used for the LMTD and the objective. 
     for hot in prob.hot_names
-        cold_match_list = prob.results_dict[:match_list][hot]
-        @variable(streams[hot], ΔT_upper[cold_match_list] >= EMAT)
-        @variable(streams[hot], ΔT_lower[cold_match_list] >= EMAT)
-        @variable(streams[hot], match_objective[cold_match_list])
-        for cold in cold_match_list
+        cold_HLD_list = prob.results_dict[:HLD_list][hot]
+        @variable(streams[hot], ΔT_upper[cold_HLD_list] >= EMAT)
+        @variable(streams[hot], ΔT_lower[cold_HLD_list] >= EMAT)
+        @variable(streams[hot], match_objective[cold_HLD_list])
+        for cold in cold_HLD_list
             add_match_linkconstraints!(prob.hot_dict[hot], prob.cold_dict[cold], HEN, streams[hot], streams[cold], overall_network[hot], overall_network[cold])
             set_match_objective!(prob.hot_dict[hot], prob.cold_dict[cold], streams[hot], obj_func, prob)  # Necessary because of bug in Plasmo in parsing generators.  
         end
@@ -71,7 +71,7 @@ Generates the Heat Exchanger Network. Define a type of superstructure for each s
     end
 
     @variable(streams["H1"], strm_obj_fn)
-    @NLconstraint(streams["H1"], streams["H1"][:strm_obj_fn] == sum(((2/(streams["H1"][:ΔT_upper][cold] + streams["H1"][:ΔT_lower][cold]))*prob.results_dict[:Q][cold, "H1"]) for cold in prob.results_dict[:match_list]["H1"]))
+    @NLconstraint(streams["H1"], streams["H1"][:strm_obj_fn] == sum(((2/(streams["H1"][:ΔT_upper][cold] + streams["H1"][:ΔT_lower][cold]))*prob.results_dict[:Q][cold, "H1"]) for cold in prob.results_dict[:HLD_list]["H1"]))
     @objective(streams["H1"], Min, streams["H1"][:strm_obj_fn])    
     
     
@@ -235,8 +235,8 @@ Function used to set the objective of each hot stream problem. The objective of 
 """
 function add_stream_objective!(hot::Union{HotStream, SimpleHotUtility}, hot_prob::OptiNode, prob::ClassicHENSProblem)
     @objective(hot_prob, Min, sum(hot_prob[:match_objective]))
-    #@NLobjective(hot_prob, Min, sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:match_list][hot.name]))     
-    # @NLobjective(hot_prob, Min, sum(prob.results_dict[:Q][cold, hot.name] for cold in prob.results_dict[:match_list][hot.name]))
+    #@NLobjective(hot_prob, Min, sum(((2/(hot_prob[:ΔT_upper][cold] + hot_prob[:ΔT_lower][cold]))*(1/(U(hot, cold)))*prob.results_dict[:Q][cold, hot.name]) for cold in prob.results_dict[:HLD_list][hot.name]))     
+    # @NLobjective(hot_prob, Min, sum(prob.results_dict[:Q][cold, hot.name] for cold in prob.results_dict[:HLD_list][hot.name]))
     # Currently, with Plasmo need to set as constraint, since @NLobjective is not supported.
     #@variable(hot_prob, stream_obj_fn)
     #@constraint(hot_prob, hot_prob[:stream_obj_fn] == prob.results_dict[:Q][cold.name, hot.name])
@@ -263,13 +263,13 @@ end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::HotStream)
     T_UBD = stream.T_in
-    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
     return (T_LBD, T_UBD)
 end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::ColdStream)
     T_LBD = stream.T_in
-    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
     return (T_LBD, T_UBD)
 end
 

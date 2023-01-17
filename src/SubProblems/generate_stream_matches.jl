@@ -123,27 +123,39 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
         end
     end
 
+    println("\n") # Double line after optimizer output.
+
     display && @show y
     display && @show Q
 
 
-
-    match_list = Dict{String, Vector{String}}()
+    # Important to distinguish between HX and Heat loads, can have a HX with Q = 0, especially for multiperiod cases.
+    HX_list = Dict{String, Vector{String}}()
+    HLD_list = Dict{String, Vector{String}}()
     for i in H_set
         matches = filter(j -> y[j,i] == 1, C_set)
-        push!(match_list, i => matches)
+        push!(HX_list, i => matches)
+        HLDs = filter(C_set) do j
+            Q[j, i] > 0.0
+        end
+        push!(HLD_list, i => HLDs)
     end
     for j in C_set
         matches = filter(i -> y[j,i] == 1, H_set)
-        push!(match_list, j => matches)
+        push!(HX_list, j => matches)
+        HLDs = filter(H_set) do i
+            Q[j, i] > 0.0
+        end
+        push!(HLD_list, j => HLDs)
     end
 
     prob.results_dict[:y] = y
     prob.results_dict[:Q] = Q
-    prob.results_dict[:match_list] = match_list
+    prob.results_dict[:HX_list] = HX_list
+    prob.results_dict[:HLD_list] = HLD_list
 
-    # Check consistency
-    sum(all.(round.(Q; digits = 0) .> 0.0)) == prob.results_dict[:min_units] + prob.results_dict[:add_units] || error("Inconsistency in stream match results. You have likely added too many results and the problem is infeasible.")
+    # Print
+    display && println("Num HXs: $(sum(all.(y .== 1))), Num HLDs: $(sum(all.(round.(Q; digits = 0) .> 0.0)))")
     return
 end
 
@@ -320,28 +332,35 @@ function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::Abstract
                 Q[j,i] = sum(sum(value.(model[:Q][(i,m,j,n,t)]) for m in hot_cc[t]) for n in cold_cc[t])
             end
         end
-        # All periods must have the same y and match_list. The same matrix y is copied to each period's `results_dict` in order to allow reuse of `ClassicHENSProblem` code. 
+        # All periods must have the same HX list but may have different HLD_lists. The same matrix y is copied to each period's `results_dict` in order to allow reuse of `ClassicHENSProblem` code. 
         # y is also placed in the `results_dict` of the overall prob.
         # The `Q` values are usually different from period to period. 
         prob.period_streams_dict[t].results_dict[:y] = y
         prob.period_streams_dict[t].results_dict[:Q] = Q
     end
     prob.results_dict[:y] = y # Remeber assignment not deep copy. Changing one changes all.
+    println("\n") # Double line after optimizer output.
     
-    match_list = Dict{String, Vector{String}}()
-    for i in H_set
-        matches = filter(j -> y[j,i] == 1, C_set)
-        push!(match_list, i => matches)
-    end
-    for j in C_set
-        matches = filter(i -> y[j,i] == 1, H_set)
-        push!(match_list, j => matches)
-    end
-
-    prob.results_dict[:match_list] = match_list
     for t in prob.period_names
-        sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)) <= prob.results_dict[:min_units] + prob.results_dict[:add_units] || error("Inconsistency in stream match results. You have likely added too many results and the problem is infeasible.")
-        prob.period_streams_dict[t].results_dict[:match_list] = match_list
+        HX_list = Dict{String, Vector{String}}()
+        HLD_list = Dict{String, Vector{String}}()
+        for i in H_set
+            matches = filter(j -> prob.period_streams_dict[t].results_dict[:y][j,i] == 1, C_set)
+            HLDs = filter(j -> (round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0), C_set)
+            push!(HX_list, i => matches)
+            push!(HLD_list, i => HLDs)
+        end
+        for j in C_set
+            matches = filter(i -> prob.period_streams_dict[t].results_dict[:y][j,i] == 1, H_set)
+            HLDs = filter(i -> (round(prob.period_streams_dict[t].results_dict[:Q][j,i]; digits = 0) > 0.0), H_set)
+            push!(HX_list, j => matches)
+            push!(HLD_list, j => HLDs)
+        end
+        prob.period_streams_dict[t].results_dict[:HX_list] = HX_list
+        prob.period_streams_dict[t].results_dict[:HLD_list] = HLD_list
+
+        # Print
+        display && println("$t : Num HXs: $(sum(all.(prob.period_streams_dict[t].results_dict[:y] .== 1))), Num HLDs: $(sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)))")
     end
     return
 end
@@ -357,8 +376,8 @@ function print_HLD(prob::MultiPeriodFlexibleHENSProblem)
         println("PROBLEM $(t)")
         println("HLD \n")
         @show prob.period_streams_dict[t].results_dict[:Q]
-        #println("Match list")
-        #@show prob.period_streams_dict[t].results_dict[:match_list]
+        #println("HLD list")
+        #@show prob.period_streams_dict[t].results_dict[:HLD_list]
         print("\n")
     end
     return
