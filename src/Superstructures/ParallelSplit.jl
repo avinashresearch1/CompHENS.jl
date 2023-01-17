@@ -24,7 +24,7 @@ function ParallelSplit(stream::String, prob::ClassicHENSProblem; verbose = true)
     nodes = Node[]
     push!(nodes, Source("SO_$(stream)"))
     push!(nodes, MajorSplitter("BS_$(stream)"))
-    for match in prob.results_dict[:match_list][stream]
+    for match in prob.results_dict[:HX_list][stream]
         push!(nodes,  HX("HX_$(stream)_$(match)", match))
     end
     push!(nodes,  MajorMixer("BM_$(stream)"))
@@ -38,8 +38,8 @@ function ParallelSplit(stream::String, prob::ClassicHENSProblem; verbose = true)
     end
 
     # Sanity tests
-    length(nodes) == length(prob.results_dict[:match_list][stream]) + 4 || error("Incorrect number of nodes generated!")
-    length(edges) == (2 + 2*length(prob.results_dict[:match_list][stream])) || error("Incorrect number of edges generated!")
+    length(nodes) == length(prob.results_dict[:HX_list][stream]) + 4 || error("Incorrect number of nodes generated!")
+    length(edges) == (2 + 2*length(prob.results_dict[:HX_list][stream])) || error("Incorrect number of edges generated!")
 
     for splitter in filter(v -> (v isa Splitter), nodes)
         length(filter(edge -> edge.out == splitter, edges)) == 1 || error("Each splitter only has single incoming edge")

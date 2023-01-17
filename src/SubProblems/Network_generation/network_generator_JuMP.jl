@@ -35,12 +35,12 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict{String, AbstractSuperstructure}; obj_func::NetworkObjective = AreaArithmeticMean(), time_limit = 20.0, optimizer, verbose = false, cost_coeff, scaling_coeff, base_cost, save_model = false)
+function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
-    haskey(prob.results_dict, :match_list) || error("Match list data not available. Solve corresponding subproblem first.")
+    haskey(prob.results_dict, :HLD_list) || error("Match list data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :T_bounds) || generate_temperature_bounds!(prob)
 
     #y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
@@ -67,29 +67,24 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
     @variable(model, 0.0 <= t[all_e_tuple_vec])
     @variable(model, 0.0 <= f[stream_e_tuple_vec])
 
-    #@variable(model, t[all_e_tuple_vec])
-    #@variable(model, f[stream_e_tuple_vec])
-
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
         add_stream_constraints!(model, prob.all_dict[stream], overall_network[stream], prob)
     end
-
     
     # 3. Setting the variables and constraints for the matches
-   
-    match_list = Tuple[]
+    HLD_list = Tuple[]
     for hot in prob.hot_names
-        for cold in prob.results_dict[:match_list][hot]
-            push!(match_list, (hot,cold))
+        for cold in prob.results_dict[:HLD_list][hot]
+            push!(HLD_list, (hot,cold))
         end
     end
     
-    @variable(model, ΔT_upper[match_list])
-    @variable(model, ΔT_lower[match_list])
+    @variable(model, ΔT_upper[HLD_list])
+    @variable(model, ΔT_lower[HLD_list])
     
     U_dict = Dict()
-    for match in match_list
+    for match in HLD_list
         set_lower_bound(model[:ΔT_upper][match], EMAT)
         set_lower_bound(model[:ΔT_lower][match], EMAT)
         hot, cold = prob.all_dict[match[1]], prob.all_dict[match[2]]
@@ -100,16 +95,15 @@ function generate_network!(prob::ClassicHENSProblem, EMAT, overall_network::Dict
     
 
     
-    set_objective_func!(model, match_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
+    set_objective_func!(model, HLD_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
 
     set_optimizer(model, optimizer)
-    set_optimizer_attribute(model, "MaxTime", time_limit)
-    set_optimizer_attribute(model, "AbsConFeasTol", 1)
 
     save_model && push!(prob.results_dict, :network_gen_model => model)
 
     optimize!(model)
-    postprocess_network!(prob, model, match_list)
+    postprocess_network!(prob, model, HLD_list)
+    isnothing(output_file) || plot_HEN_streamwise(prob, model, overall_network, output_file; digits = 1)
     return
 end
 
@@ -227,43 +221,43 @@ end
 $(TYPEDEF) 
 Function used to set the objective of each hot stream problem.
 """
-function set_objective_func!(model::AbstractModel, match_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
-    @variable(model, T_LMTD[match_list])
-    for match in match_list
+function set_objective_func!(model::AbstractModel, HLD_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    @variable(model, T_LMTD[HLD_list])
+    for match in HLD_list
         #set_lower_bound(model[:T_LMTD][match], 0.0)
         @NLconstraint(model, model[:T_LMTD][match] == smallest_value + ((2/3)*(model[:ΔT_upper][match]*model[:ΔT_lower][match])^0.5 + (1/6)*(model[:ΔT_upper][match] + model[:ΔT_lower][match])))  
     end
-    @NLobjective(model, Min, sum((base_cost + cost_coeff*((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff) for match in match_list))
+    @NLobjective(model, Min, sum((base_cost + cost_coeff*((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]]))^scaling_coeff) for match in HLD_list))
 end
 
 """
 $(TYPEDEF) 
 Function used to set the objective of each hot stream problem.
 """
-function set_objective_func!(model::AbstractModel, match_list, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
-    @variable(model, T_LMTD[match_list])
-    for match in match_list
+function set_objective_func!(model::AbstractModel, HLD_list, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    @variable(model, T_LMTD[HLD_list])
+    for match in HLD_list
         #set_lower_bound(model[:T_LMTD][match], 0.0)
         @NLconstraint(model, model[:T_LMTD][match] ==  ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
     end
-    @NLobjective(model, Max, sum(model[:T_LMTD][match] for match in match_list))
+    @NLobjective(model, Max, sum(model[:T_LMTD][match] for match in HLD_list))
 
-    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in match_list))
+    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in HLD_list))
 end
 
 """
 $(TYPEDEF) 
 Function used to set the objective of each hot stream problem.
 """
-function set_objective_func!(model::AbstractModel, match_list, obj_func::Tupper, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
-    #@variable(model, T_LMTD[match_list])
-    #for match in match_list
+function set_objective_func!(model::AbstractModel, HLD_list, obj_func::Tupper, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    #@variable(model, T_LMTD[HLD_list])
+    #for match in HLD_list
         #set_lower_bound(model[:T_LMTD][match], 0.0)
      #   @NLconstraint(model, model[:T_LMTD][match] ==  ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
     #end
-    @NLobjective(model, Max, sum(model[:ΔT_upper][match] + model[:ΔT_lower][match] for match in match_list))
+    @NLobjective(model, Max, sum(model[:ΔT_upper][match] + model[:ΔT_lower][match] for match in HLD_list))
 
-    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in match_list))
+    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in HLD_list))
 end
 
 """
@@ -281,13 +275,13 @@ end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::HotStream)
     T_UBD = stream.T_in
-    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
     return (T_LBD, T_UBD)
 end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::ColdStream)
     T_LBD = stream.T_in
-    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:match_list][stream.name]])
+    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
     return (T_LBD, T_UBD)
 end
 
@@ -303,6 +297,26 @@ function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::SimpleHo
     return (T_LBD, T_UBD)
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Generates the Heat Exchanger Network for multiperiod problems.
+    
+- One may change EMAT from period to period
+- The matches y are one for a superset of corresponding positive Q. The overall superstructure one generates is based on the matches y. Thus, one can say have FloudasCiricGrossmann() with 4 match, but the actual number of matches from period to period can vary e.g., some periods can have 3 matches. Thus the superstructure is a superset of possible period matches. This works because the superstructure for 4 matches is a superset of the superstructure for 3 matches.
+- `t , f, LMTD` and actual area can change from season to season.
+- One is still guaranteed to get atleast a feasible solution for the NLP based on the HLDs from multiperiod stream match generator. This is because the design superstructure is a superset of any operational network.
+"""
+function generate_network!(prob::MultiPeriodFlexibleHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_folder = nothing)
+    for (k,v) in prob.period_streams_dict
+        output_file = nothing
+        if !isnothing(output_folder)
+            output_file = "$(output_folder)HEN_$(k).pdf"
+        end 
+        @info "Problem $(k)"
+        generate_network!(v, EMAT; output_file = output_file, verbose = verbose, overall_network = overall_network, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = save_model)
+    end
+end
 
 #=
 From Plasmo file, potentially usefull for other set_objective_func!() methods

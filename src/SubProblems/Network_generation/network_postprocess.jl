@@ -32,9 +32,9 @@ $(TYPEDSIGNATURES)
 Postprocessing after solving stream generation subproblem. 
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
-function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, match_list; visualize = true, digits = 4, display = true)
+function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HX_list; visualize = true, digits = 4, display = true)
     area_dict = Dict()
-    for match in match_list
+    for match in HX_list
         hot, cold = match[1], match[2]
         ΔT_upper = value(model[:ΔT_upper][match]) 
         ΔT_lower = smallest_value + value(model[:ΔT_lower][match])
@@ -56,6 +56,17 @@ function get_design_area(prob::ClassicHENSProblem)
     return sum(values(prob.results_dict[:areas]))
 end
 
+function get_design_area(prob::MultiPeriodFlexibleHENSProblem)
+    area = Dict()
+    
+    for t in prob.period_names
+        println("PROBLEM $(t)")
+        push!(area, t => get_design_area(prob.period_streams_dict[t]))   
+        println("Operational Area: $(prob.period_streams_dict[t])")
+        print("\n")
+    end
+    return area
+end
 
 function plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
     __init__()
@@ -103,7 +114,7 @@ function get_stream_graph(stream::AbstractStream, prob::ClassicHENSProblem, mode
         end
     end
 
-    num_matches = length(prob.results_dict[:match_list][stream.name])    
+    num_matches = length(prob.results_dict[:HX_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()
@@ -156,7 +167,7 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
         end
     end
 
-    num_matches = length(prob.results_dict[:match_list][stream.name])    
+    num_matches = length(prob.results_dict[:HX_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()

@@ -41,7 +41,7 @@ overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiric
 base_cost, cost_coeff, scaling_coeff = 8600, 670, 0.83
 optimizer = BARON.Optimizer
 
-generate_network!(prob, EMAT, overall_network; obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, time_limit = 20.0)
+generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, time_limit = 20.0)
 model = prob.results_dict[:network_gen_model]
 #print(model)
 file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Result_Plots/Colberg_Morari.pdf"

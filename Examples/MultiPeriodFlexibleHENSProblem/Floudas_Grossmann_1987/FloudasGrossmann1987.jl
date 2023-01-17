@@ -28,5 +28,12 @@ prob.results_dict[:add_units] = 1
 @time generate_stream_matches!(prob, EMAT; verbose = true)
 print_HLD(prob)
 
+optimizer = optimizer_with_attributes(BARON.Optimizer,
+"MaxTime" => 120.0,
+"AbsConFeasTol" => 1)
+
+output_folder = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/MultiPeriodFlexibleHENSProblem/Floudas_Grossmann_1987/"
+generate_network!(prob, EMAT; optimizer = optimizer, verbose = true, output_folder = output_folder)
+get_design_area(prob)
 
 

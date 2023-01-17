@@ -54,3 +54,13 @@ function M(hot_stream::String, cold_stream::String, prob::MultiPeriodFlexibleHEN
     end
     return maximum(M_all)
 end
+
+function Base.getproperty(prob::MultiPeriodFlexibleHENSProblem, sym::Symbol)
+    if sym ∈ [:hot_dict, :hot_names, :cold_names, :stream_names,:utility_names, :all_names]
+        prob1 = prob.period_streams_dict[prob.period_names[1]]
+        @info "Using field from first period. only fields identical accross periods supported."
+        return getproperty(prob1, sym)
+    else # fallback to getfield
+        return getfield(prob, sym)
+    end
+end
