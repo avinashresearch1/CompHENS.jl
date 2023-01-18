@@ -1,0 +1,28 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  CompHENS: Computational Tools for Heat Exchanger Network
+  Synthesis
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Avinash
+    family-names: Subramanian
+  - given-names: 'Flemming '
+    family-names: Holtorf
+  - given-names: Rahul
+    family-names: Anantharaman
+  - given-names: Truls
+    family-names: Gundersen
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.7545869
+keywords:
+  - Heat Exchanger Network Synthesis
+license: MIT
+version: v0.1.0
+date-released: '2023-01-17'
