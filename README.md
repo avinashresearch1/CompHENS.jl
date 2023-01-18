@@ -13,3 +13,5 @@ If you use this toolkit, please cite:
 Subramanian, A., Holtorf, F., Anantharaman, R., & Gundersen, T. (2023). CompHENS: Computational Tools for Heat Exchanger Network Synthesis (Version v0.1.0) [Computer software]
 DOI: 10.5281/zenodo.7545869
 
+:warning: **Warning** <br>
+This package is currently under development. The user interface may change substantially prior to the first stable release.
