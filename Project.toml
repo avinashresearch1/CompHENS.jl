@@ -18,6 +18,7 @@ XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
 JuMP = "1"
+XLSX = "0.8"
 julia = "1.6"
 
 [extras]
