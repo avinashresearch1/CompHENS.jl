@@ -14,11 +14,16 @@ Kwonly = "18d08c8c-0732-55ee-a446-91a51d7b4206"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 NamedArrays = "86f7a689-2022-50b4-a561-43c23ac3c673"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
 Kwonly = "0.1"
+NamedArrays = "0.9"
+Ipopt = "1"
+Alpine = "0.5"
+HiGHS = "1"
+JuMP = "1"
+XLSX = "0.8"
 julia = "1.6"
 
 [extras]
