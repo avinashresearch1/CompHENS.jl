@@ -17,6 +17,7 @@ Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
+DocStringExtensions = "0.9"
 Plots = "1"
 MathOptInterface = "1"
 Kwonly = "0.1"
