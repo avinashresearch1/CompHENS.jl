@@ -9,12 +9,5 @@
 This software provides a Julia-based toolkit for synthesis of Heat Exchanger Networks (HENs) using a mathematical programming framework. Currently, a sequential algorithm is implemented whereby an LP is formulated to determine the minimum utility consumption, MILP to determine the minimum number of units and the stream matches. Finally, an NLP is formulated to generate the network and calculate the HEN area. 
 
 If you use this toolkit, please cite:
-@software{Subramanian_CompHENS_Computational_Tools_2023,
-author = {Subramanian, Avinash and Holtorf, Flemming  and Anantharaman, Rahul and Gundersen, Truls},
-license = {MIT},
-month = {1},
-title = {{CompHENS: Computational Tools for Heat Exchanger Network Synthesis}},
-version = {v0.1.0},
-year = {2023}
-}
+Subramanian, A., Holtorf, F., Anantharaman, R., & Gundersen, T. (2023). CompHENS: Computational Tools for Heat Exchanger Network Synthesis (Version v0.1.0) [Computer software]
 
