@@ -1,4 +1,4 @@
-#=
+
 using PyCall
 
 const nx = PyNULL()
@@ -11,7 +11,7 @@ function __init__()
     copy!(plt, pyimport("matplotlib.pyplot"))
     copy!(back_pdf, pyimport("matplotlib.backends.backend_pdf"))
 end
-=#
+
 function print_stream_results(stream::String, prob::ClassicHENSProblem, model::AbstractModel, superstructure::AbstractSplitSuperstructure; digits = 1)
     for edge in superstructure.edges
         t_val = round(value(model[:t][(stream, edge)]); digits = digits)
@@ -68,7 +68,7 @@ function get_design_area(prob::MultiPeriodFlexibleHENSProblem)
     end
     return area
 end
-#=
+
 function plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
     __init__()
     pdf = CompHENS.back_pdf.PdfPages(file_name)
@@ -194,4 +194,3 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
     node_size = fill(1.0, length(superstructure.nodes))
     return(g, edge_labels, node_labels, position, node_size)
 end
-=#
