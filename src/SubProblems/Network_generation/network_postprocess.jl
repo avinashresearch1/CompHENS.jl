@@ -33,9 +33,9 @@ $(TYPEDSIGNATURES)
 Postprocessing after solving stream generation subproblem. 
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
-function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HX_list; visualize = true, digits = 4, display = true)
+function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HLD_list; visualize = true, digits = 4, display = true)
     area_dict = Dict()
-    for match in HX_list
+    for match in HLD_list
         hot, cold = match[1], match[2]
         ΔT_upper = value(model[:ΔT_upper][match]) 
         ΔT_lower = smallest_value + value(model[:ΔT_lower][match])
@@ -115,7 +115,7 @@ function get_stream_graph(stream::AbstractStream, prob::ClassicHENSProblem, mode
         end
     end
 
-    num_matches = length(prob.results_dict[:HX_list][stream.name])    
+    num_matches = length(prob.results_dict[:HLD_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()
@@ -168,7 +168,7 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
         end
     end
 
-    num_matches = length(prob.results_dict[:HX_list][stream.name])    
+    num_matches = length(prob.results_dict[:HLD_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()
