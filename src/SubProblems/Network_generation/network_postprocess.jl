@@ -1,4 +1,4 @@
-#=
+
 using PyCall
 
 const nx = PyNULL()
@@ -11,7 +11,7 @@ function __init__()
     copy!(plt, pyimport("matplotlib.pyplot"))
     copy!(back_pdf, pyimport("matplotlib.backends.backend_pdf"))
 end
-=#
+
 function print_stream_results(stream::String, prob::ClassicHENSProblem, model::AbstractModel, superstructure::AbstractSplitSuperstructure; digits = 1)
     for edge in superstructure.edges
         t_val = round(value(model[:t][(stream, edge)]); digits = digits)
@@ -33,9 +33,9 @@ $(TYPEDSIGNATURES)
 Postprocessing after solving stream generation subproblem. 
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
-function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HX_list; visualize = true, digits = 4, display = true)
+function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HLD_list; visualize = true, digits = 4, display = true)
     area_dict = Dict()
-    for match in HX_list
+    for match in HLD_list
         hot, cold = match[1], match[2]
         ΔT_upper = value(model[:ΔT_upper][match]) 
         ΔT_lower = smallest_value + value(model[:ΔT_lower][match])
@@ -68,7 +68,7 @@ function get_design_area(prob::MultiPeriodFlexibleHENSProblem)
     end
     return area
 end
-#=
+
 function plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
     __init__()
     pdf = CompHENS.back_pdf.PdfPages(file_name)
@@ -115,7 +115,7 @@ function get_stream_graph(stream::AbstractStream, prob::ClassicHENSProblem, mode
         end
     end
 
-    num_matches = length(prob.results_dict[:HX_list][stream.name])    
+    num_matches = length(prob.results_dict[:HLD_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()
@@ -168,7 +168,7 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
         end
     end
 
-    num_matches = length(prob.results_dict[:HX_list][stream.name])    
+    num_matches = length(prob.results_dict[:HLD_list][stream.name])    
     # Copied from SeqHENS.jl
     # Setting the coordinates of the nodes
     position = Dict()
@@ -194,4 +194,3 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
     node_size = fill(1.0, length(superstructure.nodes))
     return(g, edge_labels, node_labels, position, node_size)
 end
-=#

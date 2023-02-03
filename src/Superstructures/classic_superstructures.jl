@@ -64,6 +64,7 @@ function construct_superstructure(streams::Vector{String}, superstructure::Abstr
 end
 
 function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::MultiPeriodFlexibleHENSProblem; verbose = false)
+    error("To be deprecated. Use classic version")
     overall_network = Dict{String, AbstractSuperstructure}() # Can potentially use broadcast here. 
     # Same superstructure for all periods. So using ClassicHENSProblem code. 
     cprob = prob.period_streams_dict[prob.period_names[1]]

@@ -275,13 +275,13 @@ end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::HotStream)
     T_UBD = stream.T_in
-    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
+    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]]; init = 0)
     return (T_LBD, T_UBD)
 end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::ColdStream)
     T_LBD = stream.T_in
-    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
+    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]]; init = 1000)
     return (T_LBD, T_UBD)
 end
 
@@ -307,14 +307,16 @@ Generates the Heat Exchanger Network for multiperiod problems.
 - `t , f, LMTD` and actual area can change from season to season.
 - One is still guaranteed to get atleast a feasible solution for the NLP based on the HLDs from multiperiod stream match generator. This is because the design superstructure is a superset of any operational network.
 """
-function generate_network!(prob::MultiPeriodFlexibleHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_folder = nothing)
+function generate_network!(prob::MultiPeriodFlexibleHENSProblem, EMAT; optimizer, obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_folder = nothing)
     for (k,v) in prob.period_streams_dict
         output_file = nothing
         if !isnothing(output_folder)
             output_file = "$(output_folder)HEN_$(k).pdf"
         end 
+        #  overall_network = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob)
+        @info "Only default superstructure for ClassicHENSProblem (FloudasCiricGrossmann) supported."
         @info "Problem $(k)"
-        generate_network!(v, EMAT; output_file = output_file, verbose = verbose, overall_network = overall_network, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = save_model)
+        generate_network!(v, EMAT; output_file = output_file, verbose = verbose, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = save_model)
     end
 end
 

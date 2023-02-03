@@ -49,7 +49,7 @@ base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
 #obj_func = AreaArithmeticMean()
 #obj_func = Tupper()
 optimizer = BARON.Optimizer
-generate_network!(prob, EMAT; verbose = true, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, time_limit = 20.0)
+generate_network!(prob, EMAT; verbose = true, optimizer = optimizer, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 model = prob.results_dict[:network_gen_model]
 #print(model)
 file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Result_Plots/Gundersen_4_stream.pdf"

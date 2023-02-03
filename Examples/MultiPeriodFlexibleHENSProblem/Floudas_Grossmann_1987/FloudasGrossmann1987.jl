@@ -29,7 +29,7 @@ prob.results_dict[:add_units] = 1
 print_HLD(prob)
 
 optimizer = optimizer_with_attributes(BARON.Optimizer,
-"MaxTime" => 120.0,
+"MaxTime" => 20.0,
 "AbsConFeasTol" => 1)
 
 output_folder = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/MultiPeriodFlexibleHENSProblem/Floudas_Grossmann_1987/"
