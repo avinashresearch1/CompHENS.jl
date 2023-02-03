@@ -24,10 +24,10 @@ end
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
 
 function print_full(interval::TemperatureInterval; digits = 1)
-    print("itv_", interval.index, ": [", interval.upper.T, ", ", interval.lower.T, "]")
+    print("itv_", interval.index, "Temps: [", interval.upper.T, ", ", interval.lower.T, "]")
     for (k,v) in interval.contributions
         Q = round(v; digits)
-        print(" $k: $Q")
+        print(" $k: $Q kW")
     end
     print("\n")
 end
@@ -230,7 +230,12 @@ Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(inte
 
 function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
     for interval in intervals
-        println("itv_", interval.index, " H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
+        println("itv_", interval.index, "Temps: H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
+        println("Hot side:")
+        print_full(interval.hot_side; digits = 1)
+        println("Cold side:")
+        print_full(interval.cold_side; digits = 1)
+        println("\n")
     end
 end
 

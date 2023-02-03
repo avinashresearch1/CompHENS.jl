@@ -18,7 +18,8 @@ mutable struct HotStream <: AbstractStream
     @add_kwonly function HotStream(name, T_in, T_out, mcp, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
         T_in isa Real && T_out isa Real && mcp isa Real && h isa Real || error("Input data contains a non-real number")
         T_in >= T_out || error("Supply and Target temperature don't match stream type")
-        mcp > smallest_value && h > smallest_value || error("mcp or h values infeasible")
+        mcp >= 0.0 || error("mcp values negative") # Can be zero if stream doesn't exist in one period. 
+        h > smallest_value || error("values infeasible")
         new(name, Float64(T_in), Float64(T_out), Float64(mcp), Float64(h), add_user_data, calc)
     end 
 end
@@ -41,7 +42,8 @@ mutable struct ColdStream <: AbstractStream
     @add_kwonly function ColdStream(name, T_in, T_out, mcp, h, add_user_data = Dict{String, Any}(), calc = Dict{String, Float64}())
         T_in isa Real && T_out isa Real && mcp isa Real && h isa Real || error("Input data contains a non-real number")
         T_in <= T_out || error("Supply and Target temperature don't match stream type")
-        mcp > smallest_value && h > smallest_value || error("mcp or h values infeasible")
+        mcp >= 0.0 || error("mcp values negative") # Can be zero if stream doesn't exist in one period. 
+        h > smallest_value || error("values infeasible")
         new(name, Float64(T_in), Float64(T_out), Float64(mcp), Float64(h), add_user_data, calc)
     end 
 end

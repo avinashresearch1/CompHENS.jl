@@ -275,13 +275,13 @@ end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::HotStream)
     T_UBD = stream.T_in
-    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
+    T_LBD = minimum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]]; init = 0)
     return (T_LBD, T_UBD)
 end
 
 function generate_temperature_bounds!(prob::ClassicHENSProblem, stream::ColdStream)
     T_LBD = stream.T_in
-    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]])
+    T_UBD = maximum([prob.all_dict[match].T_in for match in prob.results_dict[:HLD_list][stream.name]]; init = 1000)
     return (T_LBD, T_UBD)
 end
 
