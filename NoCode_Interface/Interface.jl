@@ -95,6 +95,7 @@ end
 begin 
 	prob2 = deepcopy(prob)
 	solve_minimum_utilities_subproblem!(prob2; verbose = false)
+	solve_minimum_units_subproblem!(prob2)
 end
 
 # ╔═╡ 223c191e-5d0d-45c6-a46c-e9398c3fd2b8
@@ -111,9 +112,6 @@ res2 = plot_composite_curve(prob2; balanced = true);
 
 # ╔═╡ 12072330-5790-4421-89c0-dbd8e1990c19
 res2.plt
-
-# ╔═╡ e6924ad2-ca1b-4ea7-a318-76b0ba402aab
-solve_minimum_units_subproblem!(prob2)
 
 # ╔═╡ aeee17c8-cc3d-4540-a87d-82e19d1536a5
 res = plot_composite_curve(prob; cold_ref_enthalpy = cold_ref_enthalpy);
