@@ -24,7 +24,7 @@ end
 Base.show(io::IO, interval::TemperatureInterval) = print(io, "itv_$(interval.index)")
 
 function print_full(interval::TemperatureInterval; digits = 1)
-    print("itv_", interval.index, "Temps: [", interval.upper.T, ", ", interval.lower.T, "]")
+    print("itv_", interval.index, "   Temps: [", interval.upper.T, ", ", interval.lower.T, "]")
     for (k,v) in interval.contributions
         Q = round(v; digits)
         print(" $k: $Q kW")
@@ -230,7 +230,7 @@ Base.show(io::IO, interval_tship::TransshipmentInterval) = print(io, "itv_$(inte
 
 function print_full(intervals::Vector{TransshipmentInterval}; digits = 1)
     for interval in intervals
-        println("itv_", interval.index, "Temps: H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
+        #println("itv_", interval.index, "Temps: H: [", interval.hot_side.upper.T, ", ", interval.hot_side.lower.T, "]", " C: [", interval.cold_side.upper.T, ", ", interval.cold_side.lower.T, "]")
         println("Hot side:")
         print_full(interval.hot_side; digits = 1)
         println("Cold side:")
@@ -288,7 +288,7 @@ Adds `prob.results_dict[primary_temperatures] = (; hot_cc, cold_cc, hot_temps, c
 `hot_temps` and `cold_temps` gives the vector of primary temperatures only.
 Note: If the amount of utility consumption in `prob` is `Inf` (e.g., prior to solution of the Minimum Utilities subproblem), then the corresponding utility stream is ignored.
 """
-function get_primary_temperatures!(prob::ClassicHENSProblem; verbose = false)
+function get_primary_temperatures!(prob::ClassicHENSProblem; verbose = false, balanced = true)
     # Getting the hot and cold temps are tailored for each subproblem type. 
     hot_temps, cold_temps = Float64[], Float64[]
     for (k,v) in prob.hot_streams_dict
@@ -320,7 +320,10 @@ function get_primary_temperatures!(prob::ClassicHENSProblem; verbose = false)
     calculate_enthalpies!([HotStream, SimpleHotUtility], hot_cc)
     calculate_enthalpies!([ColdStream, SimpleColdUtility], cold_cc)
 
-    isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Primary temperature composite curve not balanced")
+    if balanced
+        isapprox(first(hot_cc).upper.H, first(cold_cc).upper.H; atol = 1.0) || error("Primary temperature composite curve not balanced")
+    end
+
     prob.results_dict[:primary_temperatures] =  (; hot_cc, cold_cc, hot_temps, cold_temps)
     return 
 end
@@ -339,6 +342,65 @@ function calculate_enthalpies!(stream_type::Vector{DataType}, sorted_intervals::
         interval.upper.H = total_sum
     end
 end
+
+"""
+$(TYPEDSIGNATURES)
+Plots composite curve for a ClassicHENSProblem.
+"""
+function plot_composite_curve(prob::ClassicHENSProblem; verbose = false, balanced = false, hot_ref_enthalpy = 0.0, cold_ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", kwargs...)
+    get_primary_temperatures!(prob; balanced = balanced)
+    # Hot side: 
+    T_vals_hot, H_vals_hot = [], []
+    for interval in reverse(prob.results_dict[:primary_temperatures].hot_cc)
+        push!(T_vals_hot, interval.lower.T, interval.upper.T)
+        push!(H_vals_hot, interval.lower.H, interval.upper.H)
+    end
+    H_vals_hot .+= hot_ref_enthalpy
+
+    # Hot side: 
+    T_vals_cold, H_vals_cold = [], []
+    for interval in reverse(prob.results_dict[:primary_temperatures].cold_cc)
+        push!(T_vals_cold, interval.lower.T, interval.upper.T)
+        push!(H_vals_cold, interval.lower.H, interval.upper.H)
+    end
+    H_vals_cold .+= cold_ref_enthalpy
+
+    x_limits = (floor(Int64, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(H_vals_cold), minimum(H_vals_hot))), ceil(Int64, round(max(maximum(H_vals_hot), maximum(H_vals_cold)), sigdigits = 2)))
+    y_limits = (floor(Int64, min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(Int64, max(maximum(T_vals_hot), maximum(T_vals_cold))))
+
+    plt = plot(H_vals_hot, T_vals_hot, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits, ylims = y_limits, kwargs...)
+    plot!(H_vals_cold, T_vals_cold, color = :blue, shape = :circle, legend = false, kwargs...)
+    return (;plt, T_vals_hot, H_vals_hot, T_vals_cold, H_vals_cold)
+end
+
+#=
+
+function plot_cold_composite_curve(sorted_intervals::Vector{TemperatureInterval}; ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q", verbose = false)
+    T_vals = Float64[last(sorted_intervals).T_cold_lower]
+    Q_vals = Float64[ref_enthalpy]
+    for interval in reverse(sorted_intervals)
+        !verbose || println(interval.T_cold_upper, " ", interval.T_cold_lower, " ", interval.total_stream_heat_out)
+        push!(T_vals, interval.T_cold_upper)
+        ref_enthalpy += interval.total_stream_heat_out
+        push!(Q_vals, ref_enthalpy)
+    end
+    plt = plot(Q_vals, T_vals, ylabel = ylabel, xlabel = xlabel, color = :blue, shape = :circle, legend = false)
+    return plt, Q_vals, T_vals
+end
+
+
+function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; hot_ref_enthalpy = 0.0, cold_ref_enthalpy = 0.0, ylabel = "T [°C or K]", xlabel = "Heat duty Q")
+    plt_hot, Q_hot_ints, T_hot_ints = CompHENS.plot_hot_composite_curve(sorted_intervals; ref_enthalpy = hot_ref_enthalpy); 
+    plt_cold, Q_cold_int, T_cold_int = CompHENS.plot_cold_composite_curve(sorted_intervals; ref_enthalpy = cold_ref_enthalpy); 
+    
+    # No point manipulating the plots. plot!(plt1, plt2) unpacks the data anyway. 
+    x_limits = (floor(Int64, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), ceil(Int64, round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2)))
+    y_limits = (floor(Int64, min(minimum(T_hot_ints), minimum(T_cold_int))), ceil(Int64, max(maximum(T_hot_ints), maximum(T_cold_int))))
+    plot(Q_hot_ints, T_hot_ints, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits, ylims = y_limits)
+    plot!(Q_cold_int, T_cold_int, color = :blue, shape = :circle, legend = false)
+end
+=#
+
 
 """
 $(TYPEDSIGNATURES)

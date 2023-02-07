@@ -35,7 +35,7 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing)
+function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing, initial_values = nothing)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -93,16 +93,21 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
         push!(U_dict, match => U(hot, cold))
     end
     
-
-    
     set_objective_func!(model, HLD_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
+
+    # initial_values are a named tuple of (; v_names::Vector{VariableRef}, v_starts::Vector{Any})
+    if !isnothing(initial_values)
+        @assert length(initial_values.v_names) == length(initial_values.v_starts)
+        for i in 1:length(initial_values.v_names)
+            JuMP.set_start_value(initial_values.v_names[i], initial_values.v_starts[i])
+        end
+    end
 
     set_optimizer(model, optimizer)
 
-    save_model && push!(prob.results_dict, :network_gen_model => model)
-
     optimize!(model)
     postprocess_network!(prob, model, HLD_list)
+    save_model && push!(prob.results_dict, :network_gen_model => model)
     isnothing(output_file) || plot_HEN_streamwise(prob, model, overall_network, output_file; digits = 1)
     return
 end
@@ -232,17 +237,17 @@ end
 
 """
 $(TYPEDEF) 
-Function used to set the objective of each hot stream problem.
+Function used to set the objective of each hot stream problem. No scaling factor, allows use of ALPINE as polynomial problem solver. 
 """
 function set_objective_func!(model::AbstractModel, HLD_list, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
+    @warn "This objective only provides an estimate."
     @variable(model, T_LMTD[HLD_list])
     for match in HLD_list
         #set_lower_bound(model[:T_LMTD][match], 0.0)
-        @NLconstraint(model, model[:T_LMTD][match] ==  ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
+        @NLconstraint(model, model[:T_LMTD][match] == ((model[:ΔT_upper][match] + model[:ΔT_lower][match])/2))  
     end
-    @NLobjective(model, Max, sum(model[:T_LMTD][match] for match in HLD_list))
-
-    #@NLobjective(model, Min, sum(((1/(model[:T_LMTD][match]))*(1/(U_dict[match[1], match[2]]))*(prob.results_dict[:Q][match[2], match[1]])) for match in HLD_list))
+    #@NLobjective(model, Max, sum(((model[:T_LMTD][match])*(U_dict[match[1], match[2]])) for match in HLD_list)) 
+    #@NLobjective(model, Max, sum(((model[:T_LMTD][match])/(prob.results_dict[:Q][match[2], match[1]])) for match in HLD_list)) 
 end
 
 """

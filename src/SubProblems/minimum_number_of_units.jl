@@ -7,7 +7,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transshipment problem of Papoulias_Grossmann_1983 for the minimum number of HX units. 
 Returns:
 """
-function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HIGHS_solver, verbose = false)
     verbose && @info "Solving the minimum number of units subproblem"
     # Code design: One alternative here is to define the residual, R variables as `SparseAxisArrays` in JuMP. 
     # However, https://discourse.julialang.org/t/behaviour-of-sparse-array-variables-in-jump/36185/4 suggests instead fixing them to 0.0 and letting the pre-solver take care of them, so doing this.
@@ -54,8 +54,6 @@ function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit = 
     @objective(model, Min, sum(y))
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
-    presolve && set_optimizer_attribute(model, "presolve", "on")
-    set_optimizer_attribute(model, "time_limit", time_limit)
     optimize!(model)
     if verbose
         @show termination_status(model)
@@ -76,7 +74,7 @@ $(TYPEDSIGNATURES)
 
 Formulates and solves the MILP transshipment problem for `MultiPeriodFlexibleHENSProblem`
 """
-function solve_minimum_units_subproblem!(prob::MultiPeriodFlexibleHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function solve_minimum_units_subproblem!(prob::MultiPeriodFlexibleHENSProblem; optimizer = HIGHS_solver, verbose = false)
     verbose && @info "Solving the minimum number of units subproblem"
     # Code design: One alternative here is to define the residual, R variables as `SparseAxisArrays` in JuMP. 
     # However, https://discourse.julialang.org/t/behaviour-of-sparse-array-variables-in-jump/36185/4 suggests instead fixing them to 0.0 and letting the pre-solver take care of them, so doing this.
@@ -157,8 +155,6 @@ function solve_minimum_units_subproblem!(prob::MultiPeriodFlexibleHENSProblem; t
     @objective(model, Min, sum(y))
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
-    presolve && set_optimizer_attribute(model, "presolve", "on")
-    set_optimizer_attribute(model, "time_limit", time_limit)
     optimize!(model)
     if verbose
         @show termination_status(model)

@@ -7,7 +7,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_1983 to determine the minimum utility cost.
 Returns:
 """
-function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, save_model = false)
+function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer = HIGHS_solver, verbose = false, save_model = false)
     verbose && @info "Solving the minimum utilities subproblem"
     intervals = generate_transshipment_intervals(prob)
     model = Model()
@@ -31,8 +31,6 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; time_limi
     @objective(model, Min, sum(Q_in) + sum(Q_out))
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
-    presolve && set_optimizer_attribute(model, "presolve", "on")
-    set_optimizer_attribute(model, "time_limit", time_limit)
     optimize!(model)
     if verbose
         @show termination_status(model)
@@ -70,10 +68,10 @@ Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_19
 The pinch points for each period `<period_name>` are placed in the `prob.period_streams_dict[<period_name>].results_dict[:pinch_points]`, also see 
 [TODO:] Implement parallel computing version.
 """
-function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; time_limit = 60.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false)
+function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; optimizer = HIGHS_solver, verbose = false)
     for (k,v) in prob.period_streams_dict
         verbose && @info "Problem $(k)"
-        solve_minimum_utilities_subproblem!(v; time_limit = time_limit, presolve = presolve, optimizer = optimizer, verbose = verbose)
+        solve_minimum_utilities_subproblem!(v; optimizer = optimizer, verbose = verbose)
     end
     return
 end
