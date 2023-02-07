@@ -26,6 +26,7 @@ Kwonly = "0.1"
 MathOptInterface = "1"
 NamedArrays = "0.9"
 Plots = "1"
+PyCall = "1"
 XLSX = "0.8"
 julia = "1.6"
 
