@@ -1,13 +1,13 @@
 
-using PyCall
+#using PyCall
 
-const nx = PyNULL()
-const plt = PyNULL()
-const back_pdf = PyNULL()
+#const nx = PyNULL()
+#const plt = PyNULL()
+#const back_pdf = PyNULL()
 
 # Current approach is to use NetworkX. Should eventually make a PR to TikzGraphs.jl
 function __init__()
-    #=
+    #=#
     copy!(nx, pyimport("networkx"))
     copy!(plt, pyimport("matplotlib.pyplot"))
     copy!(back_pdf, pyimport("matplotlib.backends.backend_pdf"))
