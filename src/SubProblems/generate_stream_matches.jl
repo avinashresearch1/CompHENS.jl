@@ -9,7 +9,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transportation problem presented in Anantharaman 2010 P. 132 to generate stream matches. 
 
 """
-function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
+function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], optimizer = HIGHS_solver, verbose = false, digits = 4)
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
@@ -70,8 +70,6 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level = :quate
 
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
-    presolve && set_optimizer_attribute(model, "presolve", "on")
-    set_optimizer_attribute(model, "time_limit", time_limit)
     optimize!(model)
     if verbose
         @show termination_status(model)
@@ -184,7 +182,7 @@ $(TYPEDSIGNATURES)
 Constructs and solves the MILP transportation problem presented in Anantharaman 2010 P. 132 to generate stream matches. 
 
 """
-function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], time_limit = 200.0, presolve = true, optimizer = HiGHS.Optimizer, verbose = false, digits = 4)
+function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; level = :quaternary_temperatures, add_units = prob.results_dict[:add_units], optimizer = HIGHS_solver, verbose = false, digits = 4)
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
@@ -276,8 +274,6 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
     
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
-    presolve && set_optimizer_attribute(model, "presolve", "on")
-    set_optimizer_attribute(model, "time_limit", time_limit)
     optimize!(model)
     if verbose
         @show termination_status(model)
