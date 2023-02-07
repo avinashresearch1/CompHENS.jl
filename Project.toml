@@ -1,7 +1,7 @@
 name = "CompHENS"
 uuid = "873a7a81-90fd-4468-8feb-46a7ba58f008"
 authors = ["Avinash Subramanian"]
-version = "0.1.4"
+version = "0.1.2"
 
 [deps]
 BARON = "2e2ca445-9e14-5b13-8677-4410f177f82b"
