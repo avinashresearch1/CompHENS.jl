@@ -1,3 +1,4 @@
+#=
 using JuMP, AmplNLWriter, Couenne_jll, DocStringExtensions
 import CompHENS:generate_network
 """
@@ -76,3 +77,4 @@ function CompHENS.generate_network!(prob::ClassicHENSProblem, EMAT, couenne; ove
     isnothing(output_file) || plot_HEN_streamwise(prob, model, overall_network, output_file; digits = 1)
     return
 end
+=#

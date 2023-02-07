@@ -6,7 +6,7 @@ using Plots
 using JuMP
 using Test
 
-using BARON
+#using BARON
 
 exportall(CompHENS)
 
@@ -34,6 +34,7 @@ prob.results_dict[:add_units] = 1
 @time generate_stream_matches!(prob, EMAT; digits = 8, verbose  = false)
 prob.results_dict[:Q]
 
+#=
 # 7. Network generation:
 # Specify which superstructure to use for each stream
 #obj_func = CostScaledPaterson()
@@ -41,9 +42,9 @@ prob.results_dict[:Q]
 base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
 obj_func = AreaArithmeticMean()
 # using ALPINE for first-pass:
-optimizer = SCIP_solver
+#optimizer = SCIP_solver
 
-obj_func = CostScaledPaterson()
+#obj_func = CostScaledPaterson()
 #obj_func = Tupper()
 #optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1)
 
@@ -109,3 +110,4 @@ initial_values = (; v_names = variable_ref, v_starts = start_vals)
 optimizer = IPOPT_solver
 optimizer = JUNIPER_solver
 generate_network!(prob, EMAT; optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, initial_values = initial_values)
+=#

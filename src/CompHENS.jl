@@ -3,8 +3,6 @@ module CompHENS
 using DocStringExtensions
 using Kwonly
 
-
-
 """
 $(TYPEDEF)
 
@@ -71,7 +69,7 @@ include("ProblemConstructors/classic_hens_prob.jl")
 include("ProblemConstructors/multiperiod_flexible_hens_prob.jl")
 
 # Holds defaults the user may want to modify (e.g., solve options)
-export HIGHS_solver, IPOPT_solver, ALPINE_solver
+export HIGHS_solver
 include("user_defaults.jl")
 
 # Holds structures for processing the composite curve e.g., kink points

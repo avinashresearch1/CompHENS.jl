@@ -1,12 +1,14 @@
-using JuMP, HiGHS, Ipopt, Alpine, SCIP, AmplNLWriter, Couenne_jll, Juniper
+using JuMP, HiGHS#, Ipopt, Alpine, SCIP, AmplNLWriter, Couenne_jll, Juniper
 # Default solver configurations:
 # MILP
 const HIGHS_solver = JuMP.optimizer_with_attributes(
     HiGHS.Optimizer,
     "presolve" => "on",
     "log_to_console" => false,
-    "time_limit" => 20.0)
+    "time_limit" => 20.0
+)
 
+#=
 # NLP
 const IPOPT_solver = JuMP.optimizer_with_attributes(
         Ipopt.Optimizer,
@@ -34,6 +36,7 @@ const SCIP_solver = JuMP.optimizer_with_attributes(
     "display/verblevel" => 1,
     "limits/time" => 100.0
 )
+=#
 
 #=
 const ALPINE_solver = JuMP.optimizer_with_attributes(
