@@ -15,3 +15,13 @@ DOI: 10.5281/zenodo.7545869
 
 :warning: **Warning** <br>
 This package is currently under development. The user interface may change substantially prior to the first stable release.
+
+## No code usage:
+1. Download the 2 interface files from: https://github.com/avinashresearch1/CompHENS.jl/tree/main/NoCode_Interface and put them in a folder of your choice (same files from email). 
+2. Type in the stream data in the `InputData.xlsx` file. Note that all streams must have a sensible temperature difference (say use a 1 C temperature difference for condensing steam).
+3. Download and Install Julia from [Julia website](https://julialang.org/downloads/). The No-Code interface only requires the Julia REPL.
+4. From the Julia REPL, access the Package Manager by typing: `]`. Install `CompHENS` and `Pluto`
+![image](https://user-images.githubusercontent.com/90404321/217259675-2c48f58c-bd7a-4a86-9d76-1da82989c559.png)
+4. Once everything is installed, exit the package manager by typing backspace. Type `using Pluto; Pluto.run()`. This will launch the browser.
+5. Navigate to your directory to the `*.jl file`. Pluto will launch. 
+6. The slider can be used to move the composite curves. The curves update automatically with changing the `DT_min`.
