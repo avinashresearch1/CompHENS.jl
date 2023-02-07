@@ -7,9 +7,11 @@ const back_pdf = PyNULL()
 
 # Current approach is to use NetworkX. Should eventually make a PR to TikzGraphs.jl
 function __init__()
+    #=
     copy!(nx, pyimport("networkx"))
     copy!(plt, pyimport("matplotlib.pyplot"))
     copy!(back_pdf, pyimport("matplotlib.backends.backend_pdf"))
+    =#
 end
 
 function print_stream_results(stream::String, prob::ClassicHENSProblem, model::AbstractModel, superstructure::AbstractSplitSuperstructure; digits = 1)
@@ -70,6 +72,7 @@ function get_design_area(prob::MultiPeriodFlexibleHENSProblem)
 end
 
 function plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
+    #=  
     __init__()
     pdf = CompHENS.back_pdf.PdfPages(file_name)
     for stream in prob.all_names
@@ -81,8 +84,9 @@ function plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, ove
         pdf.savefig()
     end
     pdf.close()
+     =#
 end
-
+#=
 """
 $(TYPEDSIGNATURES)
 
@@ -194,3 +198,4 @@ function get_stream_graph(stream::AbstractUtility, prob::ClassicHENSProblem, mod
     node_size = fill(1.0, length(superstructure.nodes))
     return(g, edge_labels, node_labels, position, node_size)
 end
+    =#
