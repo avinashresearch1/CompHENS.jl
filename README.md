@@ -23,5 +23,5 @@ This package is currently under development. The user interface may change subst
 4. From the Julia REPL, access the Package Manager by typing: `]`. Install `CompHENS` and `Pluto`
 ![image](https://user-images.githubusercontent.com/90404321/217259675-2c48f58c-bd7a-4a86-9d76-1da82989c559.png)
 4. Once everything is installed, exit the package manager by typing backspace. Type `using Pluto; Pluto.run()`. This will launch the browser.
-5. Navigate to your directory to the `*.jl file`. Pluto will launch. 
+5. Navigate to your directory to the `Interface.jl file`. Pluto will launch. 
 6. The slider can be used to move the composite curves. The curves update automatically with changing the `DT_min`.
