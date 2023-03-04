@@ -121,6 +121,10 @@ function Base.getproperty(superstructure::AbstractSplitSuperstructure, sym::Symb
         return filter(superstructure.nodes) do v
             v isa Sink
         end
+    elseif sym == :major_mixer
+        return filter(superstructure.nodes) do v
+            v isa MajorMixer
+        end
     else # fallback to getfield
         return getfield(superstructure, sym)
     end

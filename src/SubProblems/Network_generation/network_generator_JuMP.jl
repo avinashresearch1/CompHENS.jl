@@ -35,7 +35,7 @@ $(TYPEDSIGNATURES)
 
 Generates the Heat Exchanger Network. Define a type of superstructure for each stream. 
 """
-function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing, initial_values = nothing)
+function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_network::Dict{String, AbstractSuperstructure} = construct_superstructure(prob.all_names, FloudasCiricGrossmann(), prob), obj_func::NetworkObjective = CostScaledPaterson(), verbose = false, cost_coeff = 100, scaling_coeff = 1, base_cost = 1000, save_model = false, output_file = nothing, set_starting_values = true, initial_values = nothing)
     verbose && @info "Solving the Network Generation subproblem"
     
     haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
@@ -66,6 +66,8 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     # 1. Declaring the stream-wise variables
     @variable(model, 0.0 <= t[all_e_tuple_vec])
     @variable(model, 0.0 <= f[stream_e_tuple_vec])
+
+    set_starting_values && set_start_values(prob, EMAT, overall_network; verbose = verbose)
 
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
@@ -114,7 +116,7 @@ end
 
 
 """
-$(TYPEDEF)
+$(TYPEDSIGNATURES)
 Adds constraints for each `stream`.
 """
 function add_stream_constraints!(model::AbstractModel, stream::AbstractStream, superstructure::AbstractSplitSuperstructure, prob::ClassicHENSProblem)
@@ -200,7 +202,7 @@ function add_stream_constraints!(model::AbstractModel, stream::AbstractUtility, 
 end
 
 """
-$(TYPEDEF) 
+$(TYPEDSIGNATURES)
 Function used to set the ΔT_upper and ΔT_lower to appropriate temperatures.
 """
 function add_match_feasibility_constraints!(model::AbstractModel, hot::Union{HotStream, SimpleHotUtility}, cold::Union{ColdStream, SimpleColdUtility}, hot_superstructure::AbstractSuperstructure, cold_superstructure::AbstractSuperstructure)
@@ -223,7 +225,7 @@ function add_match_feasibility_constraints!(model::AbstractModel, hot::Union{Hot
 end   
 
 """
-$(TYPEDEF) 
+$(TYPEDSIGNATURES)
 Function used to set the objective of each hot stream problem.
 """
 function set_objective_func!(model::AbstractModel, HLD_list, obj_func::CostScaledPaterson, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
@@ -236,7 +238,7 @@ function set_objective_func!(model::AbstractModel, HLD_list, obj_func::CostScale
 end
 
 """
-$(TYPEDEF) 
+$(TYPEDSIGNATURES)
 Function used to set the objective of each hot stream problem. No scaling factor, allows use of ALPINE as polynomial problem solver. 
 """
 function set_objective_func!(model::AbstractModel, HLD_list, obj_func::AreaArithmeticMean, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
@@ -251,7 +253,7 @@ function set_objective_func!(model::AbstractModel, HLD_list, obj_func::AreaArith
 end
 
 """
-$(TYPEDEF) 
+$(TYPEDSIGNATURES)
 Function used to set the objective of each hot stream problem.
 """
 function set_objective_func!(model::AbstractModel, HLD_list, obj_func::Tupper, prob::ClassicHENSProblem, EMAT; U_dict, cost_coeff = 1.0, scaling_coeff = 1, base_cost = 0)
@@ -266,7 +268,7 @@ function set_objective_func!(model::AbstractModel, HLD_list, obj_func::Tupper, p
 end
 
 """
-$(TYPEDEF) 
+$(TYPEDSIGNATURES)
 Generates bounds on the temperatures for a stream. 
 Creates a `prob.results_dict[:T_bounds]::Dict{String, Tuple}`, where the tuple is `(T_LBD, T_UBD)`
 """
@@ -350,3 +352,7 @@ function set_match_objective!(hot::Union{HotStream, SimpleHotUtility}, cold::Uni
     @NLconstraint(hot_prob, hot_prob[:match_objective][cold.name] == coeff/(((2/3)*(hot_prob[:ΔT_upper][cold.name]*hot_prob[:ΔT_lower][cold.name])^0.5) - (1/6)*(hot_prob[:ΔT_upper][cold.name] + hot_prob[:ΔT_lower][cold.name]))) # Necessary to avoid the parsing error.
 end
 =#
+
+function collect_stream_variables(model::AbstractModel, stream)
+
+end
