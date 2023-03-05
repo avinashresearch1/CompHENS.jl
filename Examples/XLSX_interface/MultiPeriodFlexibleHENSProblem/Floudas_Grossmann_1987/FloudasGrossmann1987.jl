@@ -33,6 +33,3 @@ optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsCo
 output_folder = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/MultiPeriodFlexibleHENSProblem/Floudas_Grossmann_1987/"
 generate_network!(prob, EMAT; optimizer = optimizer, verbose = true, output_folder = output_folder)
 get_design_area(prob)
-
-
-print_stream_results
