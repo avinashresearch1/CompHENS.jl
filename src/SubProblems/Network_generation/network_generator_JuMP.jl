@@ -67,7 +67,8 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     @variable(model, 0.0 <= t[all_e_tuple_vec])
     @variable(model, 0.0 <= f[stream_e_tuple_vec])
 
-    set_starting_values && set_start_values(prob, EMAT, overall_network; verbose = verbose)
+    # [WIP]
+    # set_starting_values && set_start_values(prob, EMAT, overall_network; verbose = verbose)
 
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
@@ -108,10 +109,10 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     set_optimizer(model, optimizer)
 
     optimize!(model)
-    postprocess_network!(prob, model, HLD_list)
+    results_df = postprocess_network!(prob, model, HLD_list, overall_network)
     save_model && push!(prob.results_dict, :network_gen_model => model)
     isnothing(output_file) || plot_HEN_streamwise(prob, model, overall_network, output_file; digits = 1)
-    return
+    return results_df
 end
 
 
@@ -353,6 +354,3 @@ function set_match_objective!(hot::Union{HotStream, SimpleHotUtility}, cold::Uni
 end
 =#
 
-function collect_stream_variables(model::AbstractModel, stream)
-
-end

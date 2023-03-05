@@ -44,14 +44,15 @@ base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
 
 # 7.i. Commercial using BARON:
 optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1)
-generate_network!(prob, EMAT; optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+results_df = generate_network!(prob, EMAT; optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 
 model = prob.results_dict[:network_gen_model]
 file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/XLSX_interface/ClassicHENSProblem/Gundersen_4_stream/Gundersen_4_stream.pdf"
 
 plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
-#stream = "C2"
-#CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
+
+#=Trials
+#CompHENS.
 value.(model[:ΔT_upper])
 value.(model[:ΔT_lower])
 value.(model[:T_LMTD])
