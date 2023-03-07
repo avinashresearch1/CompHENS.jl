@@ -28,3 +28,29 @@ This package is currently under development. The user interface may change subst
 
 **Note:** It may be necessary to re-run the Pluto notebook in case of errors: Click out of any cell, and `Ctrl+A`followed by `Shift+Enter`.
 
+Slide Deck with basic overview:
+![image](https://user-images.githubusercontent.com/90404321/223507752-45147c98-860f-4f94-b874-5fade560d9b3.png)
+![image](https://user-images.githubusercontent.com/90404321/223507848-016b7c1b-30a3-4af3-bb89-267f091c505d.png)
+![image](https://user-images.githubusercontent.com/90404321/223507941-fa4c6579-b921-4ae7-88bc-0c857a012db6.png)
+![image](https://user-images.githubusercontent.com/90404321/223507975-b3a07e28-918f-4893-9049-1de8a112a07c.png)
+![image](https://user-images.githubusercontent.com/90404321/223508019-8e85c1f4-aed0-46c9-938c-62d54be467d0.png)
+![image](https://user-images.githubusercontent.com/90404321/223508183-7346b624-3e2f-4630-8be1-af921c9725f6.png)
+![image](https://user-images.githubusercontent.com/90404321/223508221-e8f7cd81-4a5c-4a2f-9204-6f68b10f820a.png)
+![image](https://user-images.githubusercontent.com/90404321/223508267-e60e9ef9-1f78-4afb-a14d-a06f31e4c3a7.png)
+![image](https://user-images.githubusercontent.com/90404321/223508335-6e79647b-4a57-42a9-a4b6-952948ea2678.png)
+![image](https://user-images.githubusercontent.com/90404321/223508377-b4225c39-ec43-4f3f-921d-da74b6dd65b2.png)
+![image](https://user-images.githubusercontent.com/90404321/223508415-fe8c050f-37db-449e-9587-61a6a9c74cdc.png)
+![image](https://user-images.githubusercontent.com/90404321/223508455-4899d253-423e-4ca2-bb05-75232f256d1a.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
