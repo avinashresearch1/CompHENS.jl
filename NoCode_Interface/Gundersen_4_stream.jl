@@ -140,14 +140,11 @@ with_terminal() do
 	print_full(generate_transshipment_intervals(prob))
 end
 
-# ╔═╡ 19b2497c-c4a0-43cc-84bb-11f50de4fc6d
-# ╠═╡ show_logs = false
-begin 
+# ╔═╡ fc3a40a2-6c4c-4256-977c-9b61c7bfab1b
+begin
 	prob2 = deepcopy(prob)
-	solve_minimum_utilities_subproblem!(prob2; verbose = false)
-	solve_minimum_units_subproblem!(prob2)
-	push!(prob2.results_dict, :add_units => convert(Int64, add_units))
-	generate_stream_matches!(prob2, convert(Float64, EMAT); digits = 8, verbose  = false)
+	a1 = solve_minimum_utilities_subproblem!(prob2; verbose = false)
+	
 end
 
 # ╔═╡ 223c191e-5d0d-45c6-a46c-e9398c3fd2b8
@@ -156,14 +153,38 @@ with_terminal() do
 end
 
 
+# ╔═╡ 19b2497c-c4a0-43cc-84bb-11f50de4fc6d
+# ╠═╡ show_logs = false
+begin
+	a1;
+	a2 = solve_minimum_units_subproblem!(prob2)
+	push!(prob2.results_dict, :add_units => convert(Int64, add_units))
+	a3 = nothing;
+	
+end
+
 # ╔═╡ 02a29d27-1cc9-4e9d-8a60-b5a96d428495
-prob2.results_dict[:min_units]
+begin
+	a2;
+	prob2.results_dict[:min_units]
+end
+
+# ╔═╡ 2798fb3f-5c53-4d5a-8028-283001d170b4
+# ╠═╡ show_logs = false
+begin
+	a3;
+	a4 = generate_stream_matches!(prob2, convert(Float64, EMAT); digits = 8, verbose  = false)
+end
 
 # ╔═╡ 6c50557f-f964-4f77-af51-5086c4a517d4
-prob2.results_dict[:Q]
+begin
+	a4;
+	prob2.results_dict[:Q]
+end
 
 # ╔═╡ 4d970d06-318a-4959-a40c-8b9d457f2973
 begin
+	a4;
 	output_file = abspath(joinpath(curr_dir, output_path));
 	results_df = generate_network!(prob2, EMAT; optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => solver_time, "AbsConFeasTol" => 1), cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, output_file = output_file);
 end; 
@@ -239,7 +260,9 @@ utils
 # ╟─1d3f6f45-b00c-49f2-b1bc-9e63bf7f8387
 # ╟─3589836e-c720-426f-8580-dcb617fda150
 # ╟─ef27eeed-4b5f-4110-8cc7-890c2ef6a99a
+# ╟─fc3a40a2-6c4c-4256-977c-9b61c7bfab1b
 # ╟─19b2497c-c4a0-43cc-84bb-11f50de4fc6d
+# ╟─2798fb3f-5c53-4d5a-8028-283001d170b4
 # ╟─1248fe03-c1a6-4536-a955-2e5e0ebd861b
 # ╟─aeee17c8-cc3d-4540-a87d-82e19d1536a5
 # ╟─833ae097-cdd4-412f-a695-69ce0e9e164a
