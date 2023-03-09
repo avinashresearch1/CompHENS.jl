@@ -29,7 +29,7 @@ Kwonly = "0.1"
 MathOptInterface = "1"
 NamedArrays = "0.9"
 Plots = "1"
-XLSX = "0.8"
+XLSX = "0.8, 0.9"
 julia = "1.6"
 
 [extras]
