@@ -476,6 +476,12 @@ function get_enthalpy_match(point::Point, sorted_intervals::Vector{TemperatureIn
     verbose && println("Getting match for point $(point)")
     for interval in sorted_intervals # Can implement binary search here.
         if point.H >= floor(interval.lower.H) && point.H <= ceil(interval.upper.H) # Use floor and ceil to avoid precision issues. 
+            if abs(interval.upper.H - interval.lower.H) < smallest_value
+                verbose && println("Matching with an interval interval: T: [$(interval.lower.T), $(interval.upper.T)], H: [$(interval.lower.H), $(interval.upper.H)] of zero enthalpy range")
+                match_T = interval.lower.T # Match to lower interval if zero enthalpy range.
+                verbose && println("Matching to lower T. Match T: $(match_T)")
+                return Point{Float64}(T = match_T, H = point.H)
+            end
             match_T = interval.lower.T + (interval.upper.T - interval.lower.T)*(point.H - interval.lower.H)/(interval.upper.H - interval.lower.H)
             verbose && println("Match T: $(match_T), Match interval: T: [$(interval.lower.T), $(interval.upper.T)], H: [$(interval.lower.H), $(interval.upper.H)]")
             return Point{Float64}(T = match_T, H = point.H)
