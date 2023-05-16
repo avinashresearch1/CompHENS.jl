@@ -134,7 +134,7 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
         matches = filter(j -> y[j,i] == 1, C_set)
         push!(HX_list, i => matches)
         HLDs = filter(C_set) do j
-            Q[j, i] > 0.0
+            round(Q[j, i]; digits = 2) > 0.0 # Rounding should only be for the filtering
         end
         push!(HLD_list, i => HLDs)
     end
@@ -142,7 +142,7 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
         matches = filter(i -> y[j,i] == 1, H_set)
         push!(HX_list, j => matches)
         HLDs = filter(H_set) do i
-            Q[j, i] > 0.0
+            round(Q[j, i]; digits = 2) > 0.0 # Rounding should only be for the filtering
         end
         push!(HLD_list, j => HLDs)
     end
@@ -153,7 +153,7 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     prob.results_dict[:HLD_list] = HLD_list
 
     # Print
-    display && println("Num HXs: $(sum(all.(y .== 1))), Num HLDs: $(sum(all.(round.(Q; digits = 0) .> 0.0)))")
+    display && println("Num HXs: $(sum(all.(y .== 1))), Num HLDs: $(sum(all.(round.(Q; digits = 2) .> 0.0)))")
     return
 end
 
