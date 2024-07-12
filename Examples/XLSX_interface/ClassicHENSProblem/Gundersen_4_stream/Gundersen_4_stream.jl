@@ -6,7 +6,7 @@ using Plots
 using JuMP
 using Test
 
-using BARON
+#using BARON
 
 #exportall(CompHENS)
 

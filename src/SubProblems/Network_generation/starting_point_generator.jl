@@ -1,13 +1,13 @@
 #[WIP]
-#=
-exportall(CompHENS)
 
-verbose && @info "Solving the Network Generation subproblem"
+#exportall(CompHENS)
+
+#verbose && @info "Solving the Network Generation subproblem"
 
 haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
 haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
 haskey(prob.results_dict, :HLD_list) || error("Match list data not available. Solve corresponding subproblem first.")
-haskey(prob.results_dict, :T_bounds) || generate_temperature_bounds!(prob)
+haskey(prob.results_dict, :T_bounds) || CompHENS.generate_temperature_bounds!(prob)
 
 #y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
 
@@ -33,6 +33,22 @@ end
 @variable(model, 0.0 <= t[all_e_tuple_vec])
 @variable(model, 0.0 <= f[stream_e_tuple_vec])
 
+#TODO:
+function test_terminal_match()
+end
+
+function get_utility_match_start_vals()
+end
+    utils_dict = merge(prob.cold_utilities_dict, prob.hot_utilities_dict)
+    for (k,v) in utils_dict
+        @show k
+    end
+    (k,v) = first(utils_dict)
+    matched_streams = prob.results_dict[:HX_list][k]
+    for stream in matched_streams
+        @show stream
+    end
+
 #function set_start_values!(prob, EMAT, overall_network; verbose = verbose)
     # 1. Initialize the required dictionaries for book-keeping:
     prob.results_dict[:unflagged_matches] = deepcopy(filter(prob.results_dict[:HX_list]) do (k,v)
@@ -57,6 +73,6 @@ The, `working_terminal_temp` is changed from `T_out` and calculated for each add
 #function set_terminal_match!(model::AbstractModel, prob, stream::ColdStream, superstructure::AbstractSplitSuperstructure, match ; verbose = true)
     # A. Set starting values for the flows:
     set_start_value(model[:t][(stream.name, only(out_edges(only(superstructure.source), superstructure)))], 69.0)
-=#
+
 
 
