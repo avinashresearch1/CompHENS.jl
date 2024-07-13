@@ -1,5 +1,7 @@
 #[WIP]
-
+using CompHENS
+pk_dir = pkgdir(CompHENS)
+include(joinpath(pk_dir, "Examples", "XLSX_interface", "ClassicHENSProblem", "Gundersen_4_stream", "Gundersen_4_stream.jl"))
 #exportall(CompHENS)
 
 #verbose && @info "Solving the Network Generation subproblem"
@@ -35,27 +37,97 @@ end
 
 # Initialize all the Working Terminal Temperatures to T_out: 
 for (k,v) in prob.all_dict
-    v = prob.all_dict["H2"]
     push!(v.add_user_data, "Working Terminal T" => v.T_out)
 end
 
 #TODO:
 
+function test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
+    terminal_feasible = false
+    if (hot_T_out >= cold_T_in + EMAT) && (hot_T_in >= cold_T_out + EMAT)
+        terminal_feasible = true
+    end 
+    return (; terminal_feasible, hot_T_out, hot_T_in, cold_T_out, cold_T_in)
+end
+
 """
 Test if the `matching_stream` can be feasibly placed as the terminal serial heat exchanger of the `stream`
 """
-function test_terminal_match(stream_name::String, matching_stream_name::String)
-end
-
-function _test_terminal_match(stream::Union{ColdStream}, matching_stream::Union{HotStream, SimpleHotUtility})
+function test_terminal_match(stream_name::String, matching_stream_name::String, EMAT)
+    test_terminal_match(prob.all_dict[stream_name], prob.all_dict[matching_stream_name], EMAT)
 end
 
 stream_name = "C2"
 matching_stream_name = "ST"
 
-stream = prob.all_dict[stream_name]
-matching_stream = prob.all_dict[matching_stream_name]
- 
+cold_stream = prob.all_dict[stream_name]
+hot_matching_stream = prob.all_dict[matching_stream_name]
+
+function test_terminal_match(cold_stream::Union{ColdStream}, hot_matching_stream::Union{HotStream, SimpleHotUtility}, EMAT)
+
+    Q = prob.results_dict[:Q][cold_stream.name, hot_matching_stream.name]
+
+    hot_T_out = hot_matching_stream.add_user_data["Working Terminal T"]
+    if hot_matching_stream isa SimpleHotUtility
+        hot_T_in = hot_matching_stream.T_in
+    else
+        hot_T_in = hot_T_out + Q/hot_matching_stream.mcp
+    end
+
+    cold_T_out = cold_stream.add_user_data["Working Terminal T"]
+    cold_T_in = cold_T_out - Q/cold_stream.mcp
+
+    test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
+end
+
+stream_name = "H2"
+matching_stream_name = "CW"
+
+hot_stream = prob.all_dict[stream_name]
+cold_matching_stream = prob.all_dict[matching_stream_name]
+
+function test_terminal_match(hot_stream::Union{HotStream}, cold_matching_stream::Union{ColdStream, SimpleColdUtility}, EMAT)
+    Q = prob.results_dict[:Q][cold_matching_stream.name, hot_stream.name]
+
+    hot_T_out = hot_stream.add_user_data["Working Terminal T"]
+    hot_T_in = hot_T_out + Q/hot_stream.mcp
+    
+    cold_T_out = cold_matching_stream.add_user_data["Working Terminal T"]
+    if cold_matching_stream isa SimpleColdUtility
+        cold_T_in = cold_matching_stream.T_in
+    else
+        cold_T_in = cold_T_out - Q/cold_matching_stream.mcp
+    end
+
+    test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
+end
+
+# This will be mutated in the initialization loop
+working_HX_list = deepcopy(prob.results_dict[:HX_list])
+
+# 1. Place utilies at edges
+# 1.A Hot utilities: 
+hot_utilities = filter(working_HX_list) do (k,v) 
+    prob.all_dict[k] isa SimpleHotUtility
+end
+
+hot_util = only(keys(hot_utilities))
+cold_stream = only(working_HX_list[hot_util])
+#for hot_util in hot_utilities
+    for cold_stream in working_HX_list[hot_util]
+        @show cold_stream
+    end
+
+    (; terminal_feasible, hot_T_out, hot_T_in, cold_T_out, cold_T_in) = test_terminal_match(cold_stream,hot_util, EMAT)
+    if terminal_feasible
+        set_terminal_match_inits!(model, hot_T_out, hot_T_in, cold_T_out, cold_T_in) 
+    end
+
+function set_terminal_match_inits!(model, stream_name::String, matching_stream_name::String; hot_T_out, hot_T_in, cold_T_out, cold_T_in)
+end
+
+
+
 
 function get_utility_match_start_vals()
 end
@@ -91,7 +163,10 @@ Initially, the `working_terminal_node` of a stream is its `MajorMixer`. If a `HX
 The, `working_terminal_temp` is changed from `T_out` and calculated for each added terminal match. 
 """
 #function set_terminal_match!(model::AbstractModel, prob, stream::ColdStream, superstructure::AbstractSplitSuperstructure, match ; verbose = true)
-    # A. Set starting values for the flows:
+    # A. Set starting values for the temperatures:
+    set_start_value(model[:t][(stream.name, only(out_edges(only(superstructure.source), superstructure)))], 69.0)
+
+    # B. Set starting values for the temperatures:
     set_start_value(model[:t][(stream.name, only(out_edges(only(superstructure.source), superstructure)))], 69.0)
 
 
