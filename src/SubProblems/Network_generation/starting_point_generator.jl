@@ -33,9 +33,29 @@ end
 @variable(model, 0.0 <= t[all_e_tuple_vec])
 @variable(model, 0.0 <= f[stream_e_tuple_vec])
 
-#TODO:
-function test_terminal_match()
+# Initialize all the Working Terminal Temperatures to T_out: 
+for (k,v) in prob.all_dict
+    v = prob.all_dict["H2"]
+    push!(v.add_user_data, "Working Terminal T" => v.T_out)
 end
+
+#TODO:
+
+"""
+Test if the `matching_stream` can be feasibly placed as the terminal serial heat exchanger of the `stream`
+"""
+function test_terminal_match(stream_name::String, matching_stream_name::String)
+end
+
+function _test_terminal_match(stream::Union{ColdStream}, matching_stream::Union{HotStream, SimpleHotUtility})
+end
+
+stream_name = "C2"
+matching_stream_name = "ST"
+
+stream = prob.all_dict[stream_name]
+matching_stream = prob.all_dict[matching_stream_name]
+ 
 
 function get_utility_match_start_vals()
 end

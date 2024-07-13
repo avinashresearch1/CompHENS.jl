@@ -44,6 +44,7 @@ mutable struct ColdStream <: AbstractStream
         T_in <= T_out || error("Supply and Target temperature don't match stream type")
         mcp >= 0.0 || error("mcp values negative") # Can be zero if stream doesn't exist in one period. 
         h > smallest_value || error("values infeasible")
+        push!(add_user_data, "Working Terminal T" => T_out)
         new(name, Float64(T_in), Float64(T_out), Float64(mcp), Float64(h), add_user_data, calc)
     end 
 end
