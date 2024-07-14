@@ -26,12 +26,13 @@ Naming convention for `nodes`. Type of the node (see below) `<type>_<stream_name
 """
 struct FloudasCiricGrossmann <: AbstractSplitSuperstructure
     nodes::Union{Nothing, Vector{Node}}
-    edges::Union{Nothing, Vector{Edge}} 
-end
+    edges::Union{Nothing, Vector{Edge}}
+    metadata::Dict{Symbol, Any} 
+end # TODO: Change this to use parametric types.
 
 function FloudasCiricGrossmann(; verbose = true)
     verbose && @info "Using Superstructure: Floudas, C.A., Ciric, A.R. and Grossmann, I.E., Automatic synthesis of optimum heat exchanger network configurations. AIChE Journal. 1986." 
-    FloudasCiricGrossmann(nothing, nothing)
+    FloudasCiricGrossmann(nothing, nothing, Dict{Symbol, Any}())
 end
 
 function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose = true)
@@ -65,7 +66,7 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
         length(filter(edge -> edge.in == mixer, edges)) == 1 || error("Each mixer only has a single outgoing edge")
     end
     
-    return FloudasCiricGrossmann(nodes, edges)
+    return FloudasCiricGrossmann(nodes, edges, Dict{Symbol, Any}())
 end
 
 function construct_superstructure(stream::String, superstructure::FloudasCiricGrossmann, prob::ClassicHENSProblem; verbose = true)

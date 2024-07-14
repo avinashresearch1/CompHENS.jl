@@ -112,7 +112,7 @@ hot_utilities = filter(working_HX_list) do (k,v)
 end
 
 hot_util = only(keys(hot_utilities))
-cold_stream = only(working_HX_list[hot_util])
+cold_stream = only(working_HX_list[hot_util]) # Not gen.
 #for hot_util in hot_utilities
     for cold_stream in working_HX_list[hot_util]
         @show cold_stream
