@@ -27,7 +27,7 @@ Naming convention for `nodes`. Type of the node (see below) `<type>_<stream_name
 struct FloudasCiricGrossmann <: AbstractSplitSuperstructure
     nodes::Union{Nothing, Vector{Node}}
     edges::Union{Nothing, Vector{Edge}}
-    metadata::Dict{Symbol, Any} 
+    metadata::Dict{String, Any} 
 end # TODO: Change this to use parametric types.
 
 function FloudasCiricGrossmann(; verbose = true)
