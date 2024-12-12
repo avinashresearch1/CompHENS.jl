@@ -60,7 +60,7 @@ function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit=60
 
     # Post-processing
     min_units = Int(objective_value(model))
-    verbose && println("Minimum number of units: $(min_units)")
+    verbose && println("Minimum number of units: $min_units")
     prob.results_dict[:min_units] = min_units
     return
 end
@@ -161,7 +161,7 @@ function solve_minimum_units_subproblem!(prob::MultiPeriodFlexibleHENSProblem; o
 
     # Post-processing
     min_units = Int(round(objective_value(model); digits=0))
-    verbose && println("Minimum number of units: $(min_units)")
+    verbose && println("Minimum number of units: $min_units")
     prob.results_dict[:min_units] = min_units
     return
 end

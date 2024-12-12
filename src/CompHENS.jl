@@ -2,7 +2,7 @@ module CompHENS
 
 using DocStringExtensions
 using Kwonly
-using JuMP
+using JuMP, HiGHS
 
 """
 $(TYPEDEF)
@@ -84,7 +84,7 @@ export TemperatureInterval, TransshipmentInterval,
     get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!, assign_all_streams_and_utilities!,
     get_primary_temperatures!, calculate_enthalpies!, get_secondary_temperatures!, get_tertiary_temperatures!, get_quaternary_temperatures!,
     LMTD, is_feasible
-# using Plots
+using Plots
 include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!, print_min_utils_pinch_points
@@ -96,7 +96,7 @@ export solve_minimum_units_subproblem!
 include("SubProblems/minimum_number_of_units.jl")
 
 export generate_stream_matches!, print_HLD
-# using JuMP, HiGHS, NamedArrays, MathOptInterface
+using NamedArrays, MathOptInterface # using JuMP, HiGHS
 include("SubProblems/generate_stream_matches.jl")
 
 export AbstractSuperstructure, AbstractSplitSuperstructure, construct_superstructure, FloudasCiricGrossmann, ParallelSplit, print_node

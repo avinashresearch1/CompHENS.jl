@@ -13,17 +13,17 @@ abstract type AbstractSuperstructure end
 $(TYPEDEF)
 Holds stream superstructure types for which the stream has splits.
 """
-abstract type AbstractSplitSuperstructure <: AbstractSuperstructure end 
+abstract type AbstractSplitSuperstructure <: AbstractSuperstructure end
 
 abstract type Node end
-Base.show(io::IO, node::Node) = print(io, "$(node.name)")
+Base.show(io::IO, node::Node) = print(io, node.name)
 
-struct Source <: Node 
+struct Source <: Node
     name::String
 end
 
 abstract type Mixer <: Node end
-struct MajorMixer <: Mixer 
+struct MajorMixer <: Mixer
     name::String
 end
 
@@ -44,7 +44,7 @@ end
 struct Edge
     in::Node
     out::Node
-end 
+end
 
 Base.show(io::IO, edge::Edge) = print(io, "($(edge.in.name), $(edge.out.name))")
 
@@ -55,25 +55,25 @@ $(TYPEDSIGNATURES)
 Used to construct the same type of superstructure for all elements of the `streams` vector.
 Returns: A `Dict{String, AbstractSuperstructure}`.
 """
-function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::ClassicHENSProblem; verbose = false)
-    overall_network = Dict{String, AbstractSuperstructure}() # Can potentially use broadcast here. 
-    for stream in streams 
-        push!(overall_network, stream => construct_superstructure(stream, superstructure, prob; verbose = verbose))
+function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::ClassicHENSProblem; verbose=false)
+    overall_network = Dict{String,AbstractSuperstructure}() # Can potentially use broadcast here. 
+    for stream in streams
+        push!(overall_network, stream => construct_superstructure(stream, superstructure, prob; verbose=verbose))
     end
     return overall_network
 end
 
-function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::MultiPeriodFlexibleHENSProblem; verbose = false)
+function construct_superstructure(streams::Vector{String}, superstructure::AbstractSuperstructure, prob::MultiPeriodFlexibleHENSProblem; verbose=false)
     error("To be deprecated. Use classic version")
-    overall_network = Dict{String, AbstractSuperstructure}() # Can potentially use broadcast here. 
+    overall_network = Dict{String,AbstractSuperstructure}() # Can potentially use broadcast here. 
     # Same superstructure for all periods. So using ClassicHENSProblem code. 
     cprob = prob.period_streams_dict[prob.period_names[1]]
-    for stream in streams 
-        push!(overall_network, stream => construct_superstructure(stream, superstructure, cprob; verbose = verbose))
+    for stream in streams
+        push!(overall_network, stream => construct_superstructure(stream, superstructure, cprob; verbose=verbose))
     end
     return overall_network
 end
-        
+
 
 """
 $(TYPEDEF)
@@ -88,7 +88,7 @@ function define_out_nodes(node::Source, nodes::Vector{Node}, superstructure::Abs
     return out_nodes
 end
 
-function define_out_nodes(node::MajorMixer, nodes::Vector{Node}, superstructure::AbstractSplitSuperstructure) 
+function define_out_nodes(node::MajorMixer, nodes::Vector{Node}, superstructure::AbstractSplitSuperstructure)
     out_nodes = filter(nodes) do v # A MajorMixer only connects to a Sink
         v isa Sink
     end
@@ -96,19 +96,19 @@ function define_out_nodes(node::MajorMixer, nodes::Vector{Node}, superstructure:
     return out_nodes
 end
 
-function define_out_nodes(node::Sink, nodes::Vector{Node}, superstructure::AbstractSplitSuperstructure) 
+function define_out_nodes(node::Sink, nodes::Vector{Node}, superstructure::AbstractSplitSuperstructure)
     return Node[]
 end
 
-function Base.getproperty(superstructure::AbstractSplitSuperstructure, sym::Symbol)   
+function Base.getproperty(superstructure::AbstractSplitSuperstructure, sym::Symbol)
     if sym == :splitters
         return filter(superstructure.nodes) do v
             v isa Splitter
-        end  
+        end
     elseif sym == :mixers
         return filter(superstructure.nodes) do v
             v isa Mixer
-        end  
+        end
     elseif sym == :hxs
         return filter(superstructure.nodes) do v
             v isa HX
@@ -133,15 +133,15 @@ end
 """
 $(TYPEDEF)
 Given a `node::Node`, get all the outgoing edges.
-""" 
+"""
 function out_edges(node::Node, superstructure::AbstractSplitSuperstructure)
     return filter(edge -> edge.in == node, superstructure.edges)
-end 
+end
 
 """
 $(TYPEDEF)
 Given a `node::Node`, get all the incoming edges.
-""" 
+"""
 function in_edges(node::Node, superstructure::AbstractSplitSuperstructure)
     return filter(edge -> edge.out == node, superstructure.edges)
 end
@@ -149,10 +149,10 @@ end
 """
 $(TYPEDEF)
 Given a `node::Node`, get all the source nodes that have edges connecting to it.
-""" 
+"""
 function get_source_nodes(node::Node, superstructure::AbstractSplitSuperstructure)
     source_nodes = filter(superstructure.nodes) do v
-        Edge(v,node) ∈ superstructure.edges
+        Edge(v, node) ∈ superstructure.edges
     end
     return source_nodes
 end
@@ -160,7 +160,7 @@ end
 """
 $(TYPEDEF)
 Given a `node::Node`, get all the destination nodes that it connects to through an edge.
-""" 
+"""
 function get_destination_nodes(node::Node, superstructure::AbstractSplitSuperstructure)
     destination_nodes = filter(superstructure.nodes) do v
         Edge(node, v) ∈ superstructure.edges

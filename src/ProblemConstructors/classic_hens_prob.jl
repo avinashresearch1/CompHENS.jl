@@ -23,8 +23,11 @@ end
 
 
 function Base.show(io::IO, prob::ClassicHENSProblem)
-    println(io, "Classic HEN synthesis problem:")
-    println(io, "$(length(prob.hot_streams_dict)) hot streams, $(length(prob.cold_streams_dict)) cold streams, $(length(prob.hot_utilities_dict)) hot utilities, $(length(prob.cold_utilities_dict)) cold utilities.")
+    println(io, "Classic HEN synthesis problem:\n",
+        length(prob.hot_streams_dict), " hot streams, ",
+        length(prob.cold_streams_dict), " cold streams, ",
+        length(prob.hot_utilities_dict), " hot utilities, ",
+        length(prob.cold_utilities_dict), " cold utilities.")
 end
 
 function Base.getproperty(prob::ClassicHENSProblem, sym::Symbol)
@@ -67,9 +70,9 @@ Reads data from an XSLX file in `file_path_xlsx` and constructs a `ClassicHENSPr
 function ClassicHENSProblem(file_path_xlsx::String; ΔT_min=10.0, verbose=false)
     stream_data_dfs = DataFrame[]
     XLSX.openxlsx(file_path_xlsx) do xf
-        verbose && println("Num worksheets imported: $(XLSX.sheetcount(xf))")
+        verbose && println("Num worksheets imported: ", XLSX.sheetcount(xf))
         for sheet in XLSX.sheetnames(xf)
-            verbose && println("Importing sheet: $(sheet)")
+            verbose && println("Importing sheet: $sheet")
             push!(stream_data_dfs, DataFrame(XLSX.gettable(xf[sheet]; infer_eltypes=true)))
         end
     end
