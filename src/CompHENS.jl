@@ -71,6 +71,7 @@ include("ProblemConstructors/multiperiod_flexible_hens_prob.jl")
 
 # Holds defaults the user may want to modify (e.g., solve options)
 export HIGHS_solver
+# using JuMP, HiGHS #, Ipopt, Alpine, SCIP, AmplNLWriter, Couenne_jll, Juniper
 include("user_defaults.jl")
 
 # Holds structures for processing the composite curve e.g., kink points
@@ -83,16 +84,19 @@ export TemperatureInterval, TransshipmentInterval,
     get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!, assign_all_streams_and_utilities!,
     get_primary_temperatures!, calculate_enthalpies!, get_secondary_temperatures!, get_tertiary_temperatures!, get_quaternary_temperatures!,
     LMTD, is_feasible
-
+# using Plots
 include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!, print_min_utils_pinch_points
+# using JuMP, HiGHS
 include("SubProblems/minimum_utilities_subprob.jl")
 
 export solve_minimum_units_subproblem!
+# using JuMP, HiGHS
 include("SubProblems/minimum_number_of_units.jl")
 
 export generate_stream_matches!, print_HLD
+# using JuMP, HiGHS, NamedArrays, MathOptInterface
 include("SubProblems/generate_stream_matches.jl")
 
 export AbstractSuperstructure, AbstractSplitSuperstructure, construct_superstructure, FloudasCiricGrossmann, ParallelSplit, print_node

@@ -1,32 +1,29 @@
-using JuMP
-using HiGHS
-
 """
 $(TYPEDSIGNATURES)
 
 Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_1983 to determine the minimum utility cost.
 Returns:
 """
-function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer = HIGHS_solver, verbose = false, save_model = false)
+function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer=HIGHS_solver, verbose=false, save_model=false)
     verbose && @info "Solving the minimum utilities subproblem"
     intervals = generate_transshipment_intervals(prob)
     model = Model()
-    HU_set = keys(prob.hot_utilities_dict) 
+    HU_set = keys(prob.hot_utilities_dict)
     CU_set = keys(prob.cold_utilities_dict)
-    
+
     @variable(model, 0 <= Q_in[HU_set])
     @variable(model, 0 <= Q_out[CU_set])
     @variable(model, 0 <= R[intervals]) # Notation: R[interval] is the residual heat exiting a given interval
-    JuMP.fix(R[last(intervals)], 0.0; force = true)
-    
+    JuMP.fix(R[last(intervals)], 0.0; force=true)
+
     # First interval: Entering == Leaving
-    @constraint(model, 
-    sum(Q_in[hu] for hu in keys(first(intervals).hot_side.hot_utils)) + first(intervals).hot_side.total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_side.cold_utils)) + first(intervals).cold_side.total_stream_heat_out)
-    
+    @constraint(model,
+        sum(Q_in[hu] for hu in keys(first(intervals).hot_side.hot_utils)) + first(intervals).hot_side.total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_side.cold_utils)) + first(intervals).cold_side.total_stream_heat_out)
+
     # Remaining intervals
     @constraint(model, [k in 2:length(intervals)],
-    R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_side.hot_utils)) + intervals[k].hot_side.total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_side.cold_utils)) + intervals[k].cold_side.total_stream_heat_out)
-    
+        R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_side.hot_utils)) + intervals[k].hot_side.total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_side.cold_utils)) + intervals[k].cold_side.total_stream_heat_out)
+
     # Objective: TODO: Add utility costs.
     @objective(model, Min, sum(Q_in) + sum(Q_out))
     set_optimizer(model, optimizer)
@@ -43,11 +40,11 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
     # Post-processing
     pinch_points = Tuple[]
 
-    for (k,v) in prob.hot_utilities_dict
+    for (k, v) in prob.hot_utilities_dict
         prob.hot_utilities_dict[k].Q = value.(Q_in[k])
     end
 
-    for (k,v) in prob.cold_utilities_dict
+    for (k, v) in prob.cold_utilities_dict
         prob.cold_utilities_dict[k].Q = value.(Q_out[k])
     end
 
@@ -68,10 +65,10 @@ Constructs and solves the LP transshipment formulation of Papoulias_Grossmann_19
 The pinch points for each period `<period_name>` are placed in the `prob.period_streams_dict[<period_name>].results_dict[:pinch_points]`, also see 
 [TODO:] Implement parallel computing version.
 """
-function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; optimizer = HIGHS_solver, verbose = false)
-    for (k,v) in prob.period_streams_dict
+function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; optimizer=HIGHS_solver, verbose=false)
+    for (k, v) in prob.period_streams_dict
         verbose && @info "Problem $(k)"
-        solve_minimum_utilities_subproblem!(v; optimizer = optimizer, verbose = verbose)
+        solve_minimum_utilities_subproblem!(v; optimizer=optimizer, verbose=verbose)
     end
     return
 end
@@ -80,15 +77,15 @@ end
 Prints the minimum utility consumption and pinch points for `prob`
 Can only be called after the solving `solve_minimum_utilities_subproblem!(prob)`
 """
-function print_min_utils_pinch_points(prob::ClassicHENSProblem; drop_infinite = true, digits = 1)
-    for (k,v) in prob.hot_utilities_dict
+function print_min_utils_pinch_points(prob::ClassicHENSProblem; drop_infinite=true, digits=1)
+    for (k, v) in prob.hot_utilities_dict
         drop_infinite && v.Q == Inf && continue
-        Q_util = round(v.Q; digits = digits)
+        Q_util = round(v.Q; digits=digits)
         println("Hot utility $(k): $(Q_util) ")
     end
-    for (k,v) in prob.cold_utilities_dict
+    for (k, v) in prob.cold_utilities_dict
         drop_infinite && v.Q == Inf && continue
-        Q_util = round(v.Q; digits = digits)
+        Q_util = round(v.Q; digits=digits)
         println("Cold utility $(k): $(Q_util) ")
     end
     for pinch in prob.results_dict[:pinch_points]
@@ -98,10 +95,10 @@ function print_min_utils_pinch_points(prob::ClassicHENSProblem; drop_infinite = 
     return
 end
 
-function print_min_utils_pinch_points(prob::MultiPeriodFlexibleHENSProblem; drop_infinite = true, digits = 1)
+function print_min_utils_pinch_points(prob::MultiPeriodFlexibleHENSProblem; drop_infinite=true, digits=1)
     for k in prob.period_names
         println("PROBLEM $(k)")
-        print_min_utils_pinch_points(prob.period_streams_dict[k]; drop_infinite = drop_infinite, digits = digits)
+        print_min_utils_pinch_points(prob.period_streams_dict[k]; drop_infinite=drop_infinite, digits=digits)
         print("\n")
     end
 end
