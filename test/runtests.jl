@@ -1,3 +1,5 @@
+import Pkg
+Pkg.activate(".")
 using CompHENS
 using Test
 
