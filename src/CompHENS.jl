@@ -65,6 +65,7 @@ export AbstractStream, HotStream, ColdStream, AbstractUtility, SimpleHotUtility,
 include("Streams/streams.jl")
 
 # Hold structures of problem types
+using DataFrames, XLSX
 export ClassicHENSProblem, MultiPeriodFlexibleHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 include("ProblemConstructors/multiperiod_flexible_hens_prob.jl")
@@ -79,12 +80,12 @@ export Point
 include("Intervals/curve_points.jl")
 
 # Holds all kinds of temperature intervals
+using Plots
 export TemperatureInterval, TransshipmentInterval,
     generate_transshipment_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve,
     get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!, assign_all_streams_and_utilities!,
     get_primary_temperatures!, calculate_enthalpies!, get_secondary_temperatures!, get_tertiary_temperatures!, get_quaternary_temperatures!,
     LMTD, is_feasible
-using Plots
 include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!, print_min_utils_pinch_points
@@ -95,8 +96,8 @@ export solve_minimum_units_subproblem!
 # using JuMP, HiGHS
 include("SubProblems/minimum_number_of_units.jl")
 
-export generate_stream_matches!, print_HLD
 using NamedArrays, MathOptInterface # using JuMP, HiGHS
+export generate_stream_matches!, print_HLD
 include("SubProblems/generate_stream_matches.jl")
 
 export AbstractSuperstructure, AbstractSplitSuperstructure, construct_superstructure, FloudasCiricGrossmann, ParallelSplit, print_node

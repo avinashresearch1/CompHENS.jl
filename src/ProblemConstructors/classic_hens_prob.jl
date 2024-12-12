@@ -1,5 +1,3 @@
-using XLSX
-using DataFrames
 """
 $(TYPEDEF)
 $(TYPEDFIELDS)
@@ -143,7 +141,3 @@ function M(hot_stream::String, cold_stream::String, prob::ClassicHENSProblem)
     merged_cold = merge(prob.cold_streams_dict, prob.cold_utilities_dict)
     return min(merged_hot[hot_stream].Q, merged_cold[cold_stream].Q)
 end
-
-
-
-
