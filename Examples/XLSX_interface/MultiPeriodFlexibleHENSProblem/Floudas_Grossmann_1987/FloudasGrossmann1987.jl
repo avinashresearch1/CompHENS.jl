@@ -6,7 +6,6 @@ using JuMP
 using HiGHS
 using XLSX
 using DataFrames
-
 using BARON
 
 exportall(CompHENS)
@@ -29,7 +28,8 @@ generate_stream_matches!(prob, EMAT; verbose = false)
 print_HLD(prob)
 
 optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1)
+optimizer = EAGO.Optimizer
 
-output_folder = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/MultiPeriodFlexibleHENSProblem/Floudas_Grossmann_1987/"
+output_folder = "D:"
 generate_network!(prob, EMAT; optimizer = optimizer, verbose = true, output_folder = output_folder)
 get_design_area(prob)
