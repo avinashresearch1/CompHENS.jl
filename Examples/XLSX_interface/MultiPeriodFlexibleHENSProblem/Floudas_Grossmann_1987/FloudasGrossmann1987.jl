@@ -7,6 +7,7 @@ using HiGHS
 using XLSX
 using DataFrames
 using BARON
+import Ipopt
 
 exportall(CompHENS)
 
@@ -28,7 +29,7 @@ generate_stream_matches!(prob, EMAT; verbose = false)
 print_HLD(prob)
 
 optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1)
-optimizer = EAGO.Optimizer
+optimizer = Ipopt.Optimizer
 
 output_folder = "D:"
 generate_network!(prob, EMAT; optimizer = optimizer, verbose = true, output_folder = output_folder)

@@ -2,7 +2,7 @@ module CompHENS
 
 using DocStringExtensions
 using Kwonly
-using JuMP, HiGHS
+using JuMP, HiGHS, Ipopt
 
 """
 $(TYPEDEF)

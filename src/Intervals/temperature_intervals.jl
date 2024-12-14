@@ -249,19 +249,13 @@ Generates the double-sided intervals necessary for a transshipment problem (as v
 function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min=prob.ΔT_min)
     # Getting the hot and cold temps are tailored for each subproblem type. 
     hot_side_temps, cold_side_temps = Float64[], Float64[]
-    for (k, v) in prob.hot_streams_dict
+    for (_, v) in prob.hot_streams_dict
         push!(hot_side_temps, v.T_in, v.T_out)
-    end
-
-    for (k, v) in prob.cold_streams_dict
-        push!(hot_side_temps, v.T_in + ΔT_min, v.T_out + ΔT_min)
-    end
-
-    for (k, v) in prob.hot_streams_dict
         push!(cold_side_temps, v.T_in - ΔT_min, v.T_out - ΔT_min)
     end
 
-    for (k, v) in prob.cold_streams_dict
+    for (_, v) in prob.cold_streams_dict
+        push!(hot_side_temps, v.T_in + ΔT_min, v.T_out + ΔT_min)
         push!(cold_side_temps, v.T_in, v.T_out)
     end
 
@@ -272,7 +266,7 @@ function generate_transshipment_intervals(prob::ClassicHENSProblem, ΔT_min=prob
 
     assign_all_streams_and_utilities!(prob, hot_side, cold_side; drop_infinite=false)
     intervals_tship = TransshipmentInterval[]
-    for i in 1:length(hot_side)
+    for i in eachindex(hot_side)
         push!(intervals_tship, TransshipmentInterval{Float64}(hot_side[i], cold_side[i], ΔT_min))
     end
     return intervals_tship
@@ -345,26 +339,27 @@ end
 $(TYPEDSIGNATURES)
 Plots composite curve for a ClassicHENSProblem.
 """
-function plot_composite_curve(prob::ClassicHENSProblem; verbose=false, balanced=false, hot_ref_enthalpy=0.0, cold_ref_enthalpy=0.0, ylabel="T [°C or K]", xlabel="Heat duty Q", kwargs...)
-    get_primary_temperatures!(prob; balanced=balanced)
+function plot_composite_curve(prob::ClassicHENSProblem; verbose=false, balanced=false, hot_ref_enthalpy=0.0, cold_ref_enthalpy=0.0, ylabel="Temperature [°C or K]", xlabel="Heat duty [kW]", x_limits=nothing, y_limits=nothing, kwargs...)
+    get_primary_temperatures!(prob; balanced)
     # Hot side: 
-    T_vals_hot, H_vals_hot = [], []
+    T_vals_hot, H_vals_hot = Float64[], Float64[]
     for interval in reverse(prob.results_dict[:primary_temperatures].hot_cc)
         push!(T_vals_hot, interval.lower.T, interval.upper.T)
         push!(H_vals_hot, interval.lower.H, interval.upper.H)
     end
     H_vals_hot .+= hot_ref_enthalpy
 
-    # Hot side: 
-    T_vals_cold, H_vals_cold = [], []
+    # Cold side: 
+    T_vals_cold, H_vals_cold = Float64[], Float64[]
     for interval in reverse(prob.results_dict[:primary_temperatures].cold_cc)
         push!(T_vals_cold, interval.lower.T, interval.upper.T)
         push!(H_vals_cold, interval.lower.H, interval.upper.H)
     end
     H_vals_cold .+= cold_ref_enthalpy
 
-    x_limits = (floor(Int64, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(H_vals_cold), minimum(H_vals_hot))), ceil(Int64, round(max(maximum(H_vals_hot), maximum(H_vals_cold)), sigdigits=2)))
-    y_limits = (floor(Int64, min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(Int64, max(maximum(T_vals_hot), maximum(T_vals_cold))))
+    isnothing(x_limits) && (x_limits = (floor(Int, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(H_vals_cold), minimum(H_vals_hot))), ceil(Int, round(max(maximum(H_vals_hot), maximum(H_vals_cold)), sigdigits=2))))
+
+    isnothing(y_limits) && (y_limits = (floor(Int, min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(Int, max(maximum(T_vals_hot), maximum(T_vals_cold)))))
 
     plt = plot(H_vals_hot, T_vals_hot, ylabel=ylabel, xlabel=xlabel, color=:red, shape=:circle, legend=false, xlims=x_limits, ylims=y_limits, kwargs...)
     plot!(H_vals_cold, T_vals_cold, color=:blue, shape=:circle, legend=false, kwargs...)
@@ -392,8 +387,8 @@ function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; hot
     plt_cold, Q_cold_int, T_cold_int = CompHENS.plot_cold_composite_curve(sorted_intervals; ref_enthalpy = cold_ref_enthalpy); 
 
     # No point manipulating the plots. plot!(plt1, plt2) unpacks the data anyway. 
-    x_limits = (floor(Int64, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), ceil(Int64, round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2)))
-    y_limits = (floor(Int64, min(minimum(T_hot_ints), minimum(T_cold_int))), ceil(Int64, max(maximum(T_hot_ints), maximum(T_cold_int))))
+    x_limits = (floor(Int, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(Q_cold_int), minimum(Q_hot_ints))), ceil(Int, round(max(maximum(Q_hot_ints), maximum(Q_cold_int)), sigdigits = 2)))
+    y_limits = (floor(Int, min(minimum(T_hot_ints), minimum(T_cold_int))), ceil(Int, max(maximum(T_hot_ints), maximum(T_cold_int))))
     plot(Q_hot_ints, T_hot_ints, ylabel = ylabel, xlabel = xlabel, color = :red, shape = :circle, legend = false, xlims = x_limits, ylims = y_limits)
     plot!(Q_cold_int, T_cold_int, color = :blue, shape = :circle, legend = false)
 end
@@ -405,13 +400,13 @@ $(TYPEDSIGNATURES)
 
 Plots a single composite curve given `sorted_intervals`
 """
-function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; verbose=false, color=:blue, shape=:circle, ylabel="T [°C or K]", xlabel="Heat duty Q", kwargs...)
+function plot_composite_curve(sorted_intervals::Vector{TemperatureInterval}; verbose=false, color=:blue, shape=:circle, ylabel="Temperature [°C or K]", xlabel="Heat duty [kW]", kwargs...)
     T_vals, H_vals = [], []
     for interval in reverse(sorted_intervals)
         push!(T_vals, interval.lower.T, interval.upper.T)
         push!(H_vals, interval.lower.H, interval.upper.H)
     end
-    verbose && println("T_vals: $(T_vals), H_vals = $(H_vals)")
+    verbose && println("T_vals: $T_vals, H_vals = $H_vals")
     plot(H_vals, T_vals, ylabel=ylabel, xlabel=xlabel, color=color, shape=shape, legend=false, kwargs...)
 end
 

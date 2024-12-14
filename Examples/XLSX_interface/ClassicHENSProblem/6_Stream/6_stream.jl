@@ -5,8 +5,8 @@ using Plots
 using JuMP
 using HiGHS
 using Test
-
-using BARON
+import Ipopt
+# using BARON
 
 exportall(CompHENS)
 
@@ -37,9 +37,9 @@ EMAT = 2.5
 obj_func = CostScaledPaterson()
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
 cost_coeff, scaling_coeff = 670, 0.83
-optimizer = BARON.Optimizer
+optimizer = Ipopt.Optimizer
 
-generate_network!(prob, EMAT; optimizer, overall_network, obj_func=CostScaledPaterson(), verbose=true, cost_coeff, scaling_coeff)
+generate_network!(prob, EMAT; optimizer, overall_network, obj_func, verbose=true, cost_coeff, scaling_coeff)
 
 #=
 using Alpine

@@ -67,10 +67,9 @@ The pinch points for each period `<period_name>` are placed in the `prob.period_
 """
 function solve_minimum_utilities_subproblem!(prob::MultiPeriodFlexibleHENSProblem; optimizer=HIGHS_solver, verbose=false)
     for (k, v) in prob.period_streams_dict
-        verbose && @info "Problem $(k)"
-        solve_minimum_utilities_subproblem!(v; optimizer=optimizer, verbose=verbose)
+        verbose && @info "Problem $k"
+        solve_minimum_utilities_subproblem!(v; optimizer, verbose)
     end
-    return
 end
 
 """
@@ -97,8 +96,8 @@ end
 
 function print_min_utils_pinch_points(prob::MultiPeriodFlexibleHENSProblem; drop_infinite=true, digits=1)
     for k in prob.period_names
-        println("PROBLEM $(k)")
-        print_min_utils_pinch_points(prob.period_streams_dict[k]; drop_infinite=drop_infinite, digits=digits)
+        println("PROBLEM $k")
+        print_min_utils_pinch_points(prob.period_streams_dict[k]; drop_infinite, digits)
         print("\n")
     end
 end

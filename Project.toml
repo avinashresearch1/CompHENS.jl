@@ -6,6 +6,7 @@ version = "0.1.4"
 [deps]
 Alpine = "07493b3f-dabb-5b16-a503-4139292d7dd4"
 BARON = "2e2ca445-9e14-5b13-8677-4410f177f82b"
+Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 EAGO = "bb8be931-2a91-5aca-9f87-79e1cb69959a"
