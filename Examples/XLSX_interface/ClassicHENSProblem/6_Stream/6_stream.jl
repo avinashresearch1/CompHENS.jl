@@ -17,7 +17,6 @@ file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_SimpleExample.xlsx")
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min=20.0, verbose=true)
 
 # 4. Solve minimum utilities problem
-
 @time solve_minimum_utilities_subproblem!(prob)
 print_min_utils_pinch_points(prob)
 @test prob.pinch_points == [(517.0, 497.0)]
@@ -29,7 +28,7 @@ print_min_utils_pinch_points(prob)
 @test prob.min_units == 8
 
 # 6. Generate stream matches
-EMAT = 2.5
+EMAT = 2.5 # Exchanger Minimum Approach Temperature.
 @time generate_stream_matches!(prob, EMAT; add_units=1)
 
 # 7. Network generation:

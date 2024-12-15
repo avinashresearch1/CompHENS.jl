@@ -8,10 +8,10 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level=:quatern
     verbose && @info "Solving the Stream Match Generator subproblem"
 
     haskey(prob.results_dict, :min_units) || error("Minimum units data not available. Solve corresponding subproblem first.")
-    level == :primary_temperatures && get_primary_temperatures!(prob; verbose=verbose)
-    level == :secondary_temperatures && get_secondary_temperatures!(prob; verbose=verbose)
-    level == :tertiary_temperatures && get_tertiary_temperatures!(prob, EMAT; verbose=verbose)
-    level == :quaternary_temperatures && get_quaternary_temperatures!(prob, EMAT; verbose=verbose)
+    level == :primary_temperatures && get_primary_temperatures!(prob; verbose)
+    level == :secondary_temperatures && get_secondary_temperatures!(prob; verbose)
+    level == :tertiary_temperatures && get_tertiary_temperatures!(prob, EMAT; verbose)
+    level == :quaternary_temperatures && get_quaternary_temperatures!(prob, EMAT; verbose)
 
     hot_cc, cold_cc = prob.results_dict[level].hot_cc, prob.results_dict[level].cold_cc
 
@@ -26,7 +26,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level=:quatern
 
     for m in hot_cc
         for n in cold_cc
-            if is_feasible(m, n; EMAT=EMAT) == 0
+            if is_feasible(m, n; EMAT) == 0
                 for i in H_set
                     for j in C_set
                         JuMP.fix(Q[i, m, j, n], 0.0; force=true)
@@ -61,7 +61,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level=:quatern
         sum(sum(y[i, j] for i in H_set) for j in C_set) == prob.results_dict[:min_units] + add_units)
 
     @objective(model, Min,
-        sum(sum(sum(sum((Q[i, m, j, n] * is_feasible(m, n; EMAT=EMAT) / (U(H_stream_set[i], C_stream_set[j]) * LMTD(m, n; verbose=verbose))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
+        sum(sum(sum(sum((Q[i, m, j, n] * is_feasible(m, n; EMAT) / (U(H_stream_set[i], C_stream_set[j]) * LMTD(m, n; verbose=verbose))) for n in cold_cc) for j in C_set) for m in hot_cc) for i in H_set))
 
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
