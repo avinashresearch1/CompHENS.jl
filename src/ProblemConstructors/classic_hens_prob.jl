@@ -13,12 +13,27 @@ mutable struct ClassicHENSProblem <: AbstractSynthesisProblem
     hot_utilities_dict::Dict{String,SimpleHotUtility}
     cold_utilities_dict::Dict{String,SimpleColdUtility}
     ΔT_min::Float64
-    results_dict::Dict{Symbol,Any}
+    results_dict::Dict{Symbol,Any} # "Any" here analyzed by Cthulhu does cause type instability in functions like generate_stream_matches!(). Therefore, I suggest to change to a structure suitable for different types of data, such as mutable struct.
     @add_kwonly function ClassicHENSProblem(names, hot_streams_dict, cold_streams_dict, hot_utilities_dict=Dict{String,SimpleHotUtility}(), cold_utilities_dict=Dict{String,SimpleColdUtility}(), results_dict=Dict{Symbol,Any}(); ΔT_min=10)
         new(names, hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict, ΔT_min, results_dict)
     end
 end
 
+# TODO: Transfer results_dict to a mutable struct
+mutable struct ClassicHENSProblemResults <: AbstractSynthesisProblem
+    pinch_points::Vector{Tuple}
+    min_units::Int
+    y
+    Q
+    HX_list
+    HLD_list
+    T_bounds
+    areas::Float64
+    primary_temperatures::Float64
+    secondary_temperatures::Float64
+    tertiary_temperatures::Float64
+    quaternary_temperatures::Float64
+end
 
 function Base.show(io::IO, prob::ClassicHENSProblem)
     println(io, "Classic HEN synthesis problem:\n",
@@ -30,8 +45,11 @@ end
 
 function Base.getproperty(prob::ClassicHENSProblem, sym::Symbol)
     if sym == :pinch_points || sym == :min_units # Put all fields I expect to `results_dict` add later here.
-        sym in keys(prob.results_dict) && return prob.results_dict[sym]
-        error("$(sym) not yet added to `prob.results_dict`")
+        if sym in keys(prob.results_dict)
+            return prob.results_dict[sym]
+        else
+            error("$sym not yet added to `prob.results_dict`")
+        end
     elseif sym == :hot_dict # Hot streams and Hot utilities
         return merge(prob.hot_utilities_dict, prob.hot_streams_dict)
     elseif sym == :hot_names # Hot streams and Hot utilities

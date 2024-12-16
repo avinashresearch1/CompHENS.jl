@@ -89,7 +89,7 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level=:quatern
 
     # Post-processing
     termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try changing number of units. \n")
-    post_HLD_matches!(prob, model, level; digits=digits, display=verbose)
+    post_HLD_matches!(prob, model, level; digits, verbose)
     return
 end
 
@@ -99,7 +99,7 @@ $(TYPEDSIGNATURES)
 Postprocessing after solving stream generation subproblem. 
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
-function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level=:quaternary_temperatures; digits=4, display=true)
+function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level=:quaternary_temperatures; digits=4, verbose=true)
     H_set = prob.hot_names # ordered sets
     C_set = prob.cold_names
     hot_cc, cold_cc = prob.results_dict[level].hot_cc, prob.results_dict[level].cold_cc
@@ -116,11 +116,11 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
         end
     end
 
-    println("\n") # Double line after optimizer output.
-
-    display && @show y
-    display && @show Q
-
+    if verbose
+        println("\n") # Double line after optimizer output.
+        display(y)
+        display(Q)
+    end
 
     # Important to distinguish between HX and Heat loads, can have a HX with Q = 0, especially for multiperiod cases.
     HX_list = Dict{String,Vector{String}}()
@@ -148,7 +148,7 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     prob.results_dict[:HLD_list] = HLD_list
 
     # Print
-    display && println("Num HXs: $(sum(all.(y .== 1))), Num HLDs: $(sum(all.(round.(Q; digits = 2) .> 0.0)))")
+    verbose && println("Heat exchangers (HXs): ", count(==(1), y), ", heat load distributions (HLDs): ", count(>(0), Q))
     return
 end
 
@@ -278,7 +278,7 @@ function generate_stream_matches!(prob::MultiPeriodFlexibleHENSProblem, EMAT; le
 
     # Post-processing
     termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try adding more units. \n")
-    post_HLD_matches!(prob, model, level; digits=digits, display=verbose)
+    post_HLD_matches!(prob, model, level; digits=digits, verbose=verbose)
     #=
     y_match = Dict()
     for t in periods
@@ -302,7 +302,7 @@ $(TYPEDSIGNATURES)
 Postprocessing after solving stream generation subproblem. 
 Displays the matches and heat load distribution in a 2-D matrix form, maintains stream ordering.
 """
-function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::AbstractModel, level=:quaternary_temperatures; digits=4, display=true)
+function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::AbstractModel, level=:quaternary_temperatures; digits=4, verbose=true)
     H_set = prob.period_streams_dict[prob.period_names[1]].hot_names # ordered sets
     C_set = prob.period_streams_dict[prob.period_names[1]].cold_names
 
@@ -351,7 +351,7 @@ function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::Abstract
         prob.period_streams_dict[t].results_dict[:HLD_list] = HLD_list
 
         # Print
-        display && println("$t : Num HXs: $(sum(all.(prob.period_streams_dict[t].results_dict[:y] .== 1))), Num HLDs: $(sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)))")
+        verbose && println("$t : Num HXs: $(sum(all.(prob.period_streams_dict[t].results_dict[:y] .== 1))), Num HLDs: $(sum(all.(round.(prob.period_streams_dict[t].results_dict[:Q]; digits = 0) .> 0.0)))")
     end
     return
 end
