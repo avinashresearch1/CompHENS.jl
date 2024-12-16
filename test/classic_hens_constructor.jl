@@ -39,13 +39,7 @@ end;
 
     EMAT = 2.5
     generate_stream_matches!(prob, EMAT; add_units=1)
-    @test prob.results_dict[:y] == [
-        1 1 1
-        0 1 0
-        1 1 0]
-    @test all(prob.results_dict[:Q] .≈ [
-        1176.0 1224.0 300.0
-        -7.815970093361102e-14 1080.0 0.0
-        124.0 96.0 0.0])
+    @test prob.results_dict[:y] == [1 1 1; 0 1 0; 1 1 0]
+    @test all(prob.results_dict[:Q] .≈ [1176.0 1224.0 300.0; -7.815970093361102e-14 1080.0 0.0; 124.0 96.0 0.0])
     @test count(==(1), prob.results_dict[:y]) == 6 && count(>(0), prob.results_dict[:Q]) == 6
 end;

@@ -118,9 +118,6 @@ function generate_network!(prob::ClassicHENSProblem, EMAT;
     end
 
     set_optimizer(model, optimizer)
-    # set_attribute(model, "print_level", 10)
-    # set_attribute(model, "check_derivatives_for_naninf", "yes")
-    # set_attribute(model, "derivative_test", "first-order")
 
     optimize!(model)
     results_df = postprocess_network!(prob, model, HLD_list, overall_network)

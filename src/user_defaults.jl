@@ -7,6 +7,7 @@ const HIGHS_solver = JuMP.optimizer_with_attributes(
     "time_limit" => 20.0
 )
 
+#=
 # NLP
 const IPOPT_solver = JuMP.optimizer_with_attributes(
     Ipopt.Optimizer,
@@ -27,7 +28,6 @@ const IPOPT_solver = JuMP.optimizer_with_attributes(
 #    AmplNLWriter.Optimizer(Couenne_jll.amplexe)
 #)
 
-#=
 const SCIP_solver = JuMP.optimizer_with_attributes(
     SCIP.Optimizer,
     "display/verblevel" => 1,

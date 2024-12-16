@@ -13,10 +13,6 @@ prob = ClassicHENSProblem(file_path_xlsx; ΔT_min=20.0, verbose=true)
 
 # 4. Solve minimum utilities problem
 @time solve_minimum_utilities_subproblem!(prob) # default to HIGHS_solver
-# GLPK  232.000 μs (3277 allocations: 124.55 KiB)
-# Clp   320.300 μs (3539 allocations: 144.77 KiB)
-# HiGHS 644.700 μs (3358 allocations: 129.66 KiB)
-# Cbc   2.637 ms (3524 allocations: 145.45 KiB) 
 print_min_utils_pinch_points(prob)
 @test prob.pinch_points == [(517.0, 497.0)]
 @test isapprox(prob.hot_utilities_dict["ST"].Q, 244.13; atol=1)
@@ -24,17 +20,11 @@ print_min_utils_pinch_points(prob)
 
 # 5. Solve the minimum number of units subproblem:
 @time solve_minimum_units_subproblem!(prob)
-# GLPK  816.100 μs (8842 allocations: 475.00 KiB)
-# HiGHS 2.020 ms (8817 allocations: 483.30 KiB)
-# Cbc   4.549 ms (8716 allocations: 514.66 KiB)
 @test prob.min_units == 8
 
 # 6. Generate stream matches
 EMAT = 2.5 # Exchanger Minimum Approach Temperature.
 @time generate_stream_matches!(prob, EMAT; add_units=1, verbose=true)
-# GLPK  10.810 ms (191113 allocations: 12.25 MiB)
-# HiGHS 17.093 ms (190990 allocations: 12.34 MiB)
-# Cbc   25.547 ms (197424 allocations: 12.88 MiB)
 
 ## 7. Network generation:
 # Specify which superstructure to use for each stream
