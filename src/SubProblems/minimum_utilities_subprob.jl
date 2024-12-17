@@ -17,12 +17,16 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
     JuMP.fix(R[last(intervals)], 0.0; force=true)
 
     # First interval: Entering == Leaving
+    first_interval = first(intervals)
     @constraint(model,
-        sum(Q_in[hu] for hu in keys(first(intervals).hot_side.hot_utils)) + first(intervals).hot_side.total_stream_heat_in == R[first(intervals)] + sum(Q_out[cu] for cu in keys(first(intervals).cold_side.cold_utils)) + first(intervals).cold_side.total_stream_heat_out)
+        sum(Q_in[hu] for hu in keys(first_interval.hot_side.hot_utils)) + first_interval.hot_side.total_stream_heat_in == R[first_interval] + sum(Q_out[cu] for cu in keys(first_interval.cold_side.cold_utils)) + first_interval.cold_side.total_stream_heat_out)
 
     # Remaining intervals
-    @constraint(model, [k in 2:length(intervals)],
-        R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(intervals[k].hot_side.hot_utils)) + intervals[k].hot_side.total_stream_heat_in == R[intervals[k]] + sum(Q_out[cu] for cu in keys(intervals[k].cold_side.cold_utils)) + intervals[k].cold_side.total_stream_heat_out)
+    for k in 2:length(intervals)
+        interval = intervals[k]
+        @constraint(model,
+            R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(interval.hot_side.hot_utils)) + interval.hot_side.total_stream_heat_in == R[interval] + sum(Q_out[cu] for cu in keys(interval.cold_side.cold_utils)) + interval.cold_side.total_stream_heat_out)
+    end
 
     # Objective: TODO: Add utility costs.
     @objective(model, Min, sum(Q_in) + sum(Q_out))
@@ -56,63 +60,6 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
     prob.results_dict[:pinch_points] = pinch_points
     return
 end
-
-# function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer=HIGHS_solver, verbose=false)
-#     verbose && @info "Solving the minimum utilities subproblem"
-#     intervals = generate_transshipment_intervals(prob)
-#     model = Model()
-#     HU_set = keys(prob.hot_utilities_dict)
-#     CU_set = keys(prob.cold_utilities_dict)
-
-#     @variable(model, 0 <= Q_in[HU_set])
-#     @variable(model, 0 <= Q_out[CU_set])
-#     @variable(model, 0 <= R[intervals]) # Notation: R[interval] is the residual heat exiting a given interval
-#     JuMP.fix(R[last(intervals)], 0.0; force=true)
-
-#     # First interval: Entering == Leaving
-#     first_interval = first(intervals)
-#     @constraint(model,
-#         sum(Q_in[hu] for hu in keys(first_interval.hot_side.hot_utils)) + first_interval.hot_side.total_stream_heat_in == R[first_interval] + sum(Q_out[cu] for cu in keys(first_interval.cold_side.cold_utils)) + first_interval.cold_side.total_stream_heat_out)
-
-#     # Remaining intervals
-#     for k in 2:length(intervals)
-#         interval = intervals[k]
-#         @constraint(model,
-#             R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(interval.hot_side.hot_utils)) + interval.hot_side.total_stream_heat_in == R[interval] + sum(Q_out[cu] for cu in keys(interval.cold_side.cold_utils)) + interval.cold_side.total_stream_heat_out)
-#     end
-
-#     # Objective: TODO: Add utility costs.
-#     @objective(model, Min, sum(Q_in) + sum(Q_out))
-#     set_optimizer(model, optimizer)
-#     !verbose && set_silent(model)
-#     optimize!(model)
-#     if verbose
-#         @show termination_status(model)
-#         @show primal_status(model)
-#         @show dual_status(model)
-#     end
-
-#     push!(prob.results_dict, :min_utils_model => model) # Removed the option to save the model. Bescause the model has already been created and memory has been allocated here, saving the model will not affect performance.
-
-#     # Post-processing
-#     pinch_points = Tuple[]
-
-#     for (k, v) in prob.hot_utilities_dict
-#         prob.hot_utilities_dict[k].Q = value.(Q_in[k])
-#     end
-
-#     for (k, v) in prob.cold_utilities_dict
-#         prob.cold_utilities_dict[k].Q = value.(Q_out[k])
-#     end
-
-#     for interval in setdiff(intervals, [last(intervals)])
-#         if value.(R[interval]) <= smallest_value
-#             push!(pinch_points, (interval.hot_side.lower.T, interval.cold_side.lower.T))
-#         end
-#     end
-#     prob.results_dict[:pinch_points] = pinch_points
-#     return
-# end
 
 
 """
