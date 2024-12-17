@@ -13,7 +13,7 @@ df = DataFrame("Stream" => ["H1", "H2", "C1", "C2", "ST", "CW"],
     "Heat transfer coefficient h [kW/m2C or kW/m2K]" => [0.2, 0.2, 0.2, 0.2, 0.2, 0.2],
     "Cost [\$/kW]" => [0, 0, 0, 0, 200.0, 20.0],
     "Forbidden Matches" => [nothing, nothing, nothing, nothing, nothing, nothing],
-    "Compulsory Matches" => [nothing, nothing, nothing, nothing, nothing, nothing],)
+    "Compulsory Matches" => [nothing, nothing, nothing, nothing, nothing, nothing]);
 
 # 3. Construct a classic HENS problem
 prob = ClassicHENSProblem(df; ΔT_min=10.0)
@@ -26,6 +26,7 @@ solve_minimum_utilities_subproblem!(prob)
 # GLPK  232.000 μs (3277 allocations: 124.55 KiB)
 # Clp   320.300 μs (3539 allocations: 144.77 KiB)
 # HiGHS 644.700 μs (3358 allocations: 129.66 KiB)
+# performance enhancements to 624.600 μs (3091 allocations: 111.84 KiB)
 # Cbc   2.637 ms (3524 allocations: 145.45 KiB) 
 res = plot_composite_curve(prob; balanced=true);
 display(res.plt)

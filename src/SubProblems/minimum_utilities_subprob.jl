@@ -22,14 +22,16 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
         sum(Q_in[hu] for hu in keys(first_interval.hot_side.hot_utils)) + first_interval.hot_side.total_stream_heat_in == R[first_interval] + sum(Q_out[cu] for cu in keys(first_interval.cold_side.cold_utils)) + first_interval.cold_side.total_stream_heat_out)
 
     # Remaining intervals
-    for k in 2:length(intervals)
+    for k in eachindex(intervals)[2:end]
         interval = intervals[k]
         @constraint(model,
             R[intervals[k-1]] + sum(Q_in[hu] for hu in keys(interval.hot_side.hot_utils)) + interval.hot_side.total_stream_heat_in == R[interval] + sum(Q_out[cu] for cu in keys(interval.cold_side.cold_utils)) + interval.cold_side.total_stream_heat_out)
     end
 
-    # Objective: TODO: Add utility costs.
-    @objective(model, Min, sum(Q_in) + sum(Q_out))
+    # Objective: TODO: Add utility costs. Done. Check.
+    h_cost = sum(Q_in[k] * v.add_user_data["Cost [\$/kW]"] for (k, v) in prob.hot_utilities_dict)
+    c_cost = sum(Q_out[k] * v.add_user_data["Cost [\$/kW]"] for (k, v) in prob.cold_utilities_dict)
+    @objective(model, Min, h_cost + c_cost)
     set_optimizer(model, optimizer)
     !verbose && set_silent(model)
     optimize!(model)
@@ -45,11 +47,11 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
     pinch_points = Tuple[]
 
     for (k, v) in prob.hot_utilities_dict
-        prob.hot_utilities_dict[k].Q = value.(Q_in[k])
+        v.Q = value(Q_in[k])
     end
 
     for (k, v) in prob.cold_utilities_dict
-        prob.cold_utilities_dict[k].Q = value.(Q_out[k])
+        v.Q = value(Q_out[k])
     end
 
     for interval in setdiff(intervals, [last(intervals)])
