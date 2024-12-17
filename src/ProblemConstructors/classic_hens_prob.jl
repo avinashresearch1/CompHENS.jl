@@ -97,6 +97,18 @@ function ClassicHENSProblem(file_path_xlsx::String; ΔT_min=10.0, verbose=false)
     return ClassicHENSProblem(stream_data_dfs[1]; ΔT_min)
 end
 
+# Column names of XLSX interface:
+const stream_label = "Stream"
+const type_label = "Type [H, C, HU or CU]"
+const t_in_label = "Supply Temperature T_in [C or K]"
+const t_out_label = "Target Temperature T_out [C or K]"
+const heat_cap_label = "Heat Capacity mCp [kW/C or kW/K]"
+const heat_coeff_label = "Heat transfer coefficient h [kW/m2C or kW/m2K]"
+const cost_label = "Cost [\$/kW]"
+const forbidden_label = "Forbidden Matches"
+const compulsory_label = "Compulsory Matches"
+const additional_user_fields = Set{String}(["Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches", "Maximum Temperature", "Mininum Temperature"])
+
 """
 $(TYPEDSIGNATURES)
 
@@ -106,49 +118,40 @@ Given a `DataFrame` object (from a single excel worksheet), returns a `ClassicHE
 Note that this function can also called for other problem types e.g., `MultiPeriodFlexibleHENSProblem`. 
 """
 function ClassicHENSProblem(stream_data_df::DataFrame; ΔT_min=10.0)
-    # Column names of XLSX interface:
-    stream_label = "Stream"
-    type_label = "Type [H, C, HU or CU]"
-    t_in_label = "Supply Temperature T_in [C or K]"
-    t_out_label = "Target Temperature T_out [C or K]"
-    heat_cap_label = "Heat Capacity mCp [kW/C or kW/K]"
-    heat_coeff_label = "Heat transfer coefficient h [kW/m2C or kW/m2K]"
-    cost_label = "Cost [\$/kW]"
-    forbidden_label = "Forbidden Matches"
-    compulsory_label = "Compulsory Matches"
-    additional_user_fields = Set{String}(["Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches", "Maximum Temperature", "Mininum Temperature"])
-
-    s_names = Dict{Symbol,Vector{String}}()
     hot_streams_dict = Dict{String,HotStream}()
     cold_streams_dict = Dict{String,ColdStream}()
     hot_utilities_dict = Dict{String,SimpleHotUtility}()
     cold_utilities_dict = Dict{String,SimpleColdUtility}()
+    hot_stream_names, cold_stream_names, hot_utility_names, cold_utility_names = String[], String[], String[], String[]
 
     names_stream_df = names(stream_data_df)
 
-    hot_stream_names, cold_stream_names, hot_utility_names, cold_utility_names = String[], String[], String[], String[]
+    get_user_data(row) = Dict{String,Any}(k => row[k] for k in additional_user_fields if (k in names_stream_df && !ismissing(row[k])))
 
     for row in eachrow(stream_data_df)
         # add_user_data field in all stream types.
-        add_user_data = Dict{String,Any}(k => row[k] for k in additional_user_fields if (k in names_stream_df && !ismissing(row[k])))
+        add_user_data = get_user_data(row)
+        name = row[stream_label]
+        T_in = row[t_in_label]
+        T_out = row[t_out_label]
+        h = row[heat_coeff_label]
+
         if row[type_label] == "H" # Hot stream
-            push!(hot_stream_names, row[stream_label])
-            hot_streams_dict[row[stream_label]] = HotStream(name=row[stream_label], T_in=row[t_in_label], T_out=row[t_out_label], mcp=row[heat_cap_label], h=row[heat_coeff_label], add_user_data=add_user_data)
+            push!(hot_stream_names, name)
+            hot_streams_dict[name] = HotStream(; name, T_in, T_out, mcp=row[heat_cap_label], h, add_user_data)
         elseif row[type_label] == "C" # Cold stream
-            push!(cold_stream_names, row[stream_label])
-            cold_streams_dict[row[stream_label]] = ColdStream(name=row[stream_label], T_in=row[t_in_label], T_out=row[t_out_label], mcp=row[heat_cap_label], h=row[heat_coeff_label], add_user_data=add_user_data)
+            push!(cold_stream_names, name)
+            cold_streams_dict[name] = ColdStream(; name, T_in, T_out, mcp=row[heat_cap_label], h, add_user_data)
         elseif row[type_label] == "HU" # Hot utility stream
-            push!(hot_utility_names, row[stream_label])
-            hot_utilities_dict[row[stream_label]] = SimpleHotUtility(name=row[stream_label], T_in=row[t_in_label], T_out=row[t_out_label], h=row[heat_coeff_label], add_user_data=add_user_data)
+            push!(hot_utility_names, name)
+            hot_utilities_dict[name] = SimpleHotUtility(; name, T_in, T_out, h, add_user_data)
         elseif row[type_label] == "CU" # Cold utility stream
-            push!(cold_utility_names, row[stream_label])
-            cold_utilities_dict[row[stream_label]] = SimpleColdUtility(name=row[stream_label], T_in=row[t_in_label], T_out=row[t_out_label], h=row[heat_coeff_label], add_user_data=add_user_data)
+            push!(cold_utility_names, name)
+            cold_utilities_dict[name] = SimpleColdUtility(; name, T_in, T_out, h, add_user_data)
         end
     end
-    s_names[:hot_streams] = hot_stream_names
-    s_names[:cold_streams] = cold_stream_names
-    s_names[:hot_utilities] = hot_utility_names
-    s_names[:cold_utilities] = cold_utility_names
+
+    s_names = Dict(:hot_streams => hot_stream_names, :cold_streams => cold_stream_names, :hot_utilities => hot_utility_names, :cold_utilities => cold_utility_names)
     ## TODO: Logic to get `ΔT_min` from XLSX sheet.  
     return ClassicHENSProblem(s_names, hot_streams_dict, cold_streams_dict, hot_utilities_dict, cold_utilities_dict; ΔT_min)
 end

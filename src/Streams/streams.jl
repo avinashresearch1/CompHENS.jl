@@ -125,7 +125,7 @@ end
 
 """
 $(TYPEDSIGNATURES)
-Returns a tight bound for the big-M coefficients i.e. UBD for heat transfer between `hot_stream` and  `cold_stream`. Can only be done after solution of minimum utilities subproblem.
+Returns a tight bound for the big-M coefficients i.e. UBD for heat transfer between `hot_stream` and `cold_stream`. Can only be done after solution of minimum utilities subproblem.
 """
 function M(hot_stream::Union{HotStream,SimpleHotUtility}, cold_stream::Union{ColdStream,SimpleColdUtility})
     return min(hot_stream.Q, cold_stream.Q)

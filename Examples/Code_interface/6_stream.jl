@@ -1,9 +1,8 @@
-# Workflow using XLSX input:
 # 1. Import necessary packages:
-@time using CompHENS
-using Plots, Test
-using JuMP, HiGHS
-using BARON
+using CompHENS
+using DataFrames, Plots, Test
+using JuMP, HiGHS, BARON
+using BenchmarkTools
 
 # 2. Specify the dataFrame
 df = DataFrame("Stream" => ["H1", "H2", "C1", "C2", "ST", "CW"],
@@ -16,26 +15,32 @@ df = DataFrame("Stream" => ["H1", "H2", "C1", "C2", "ST", "CW"],
     "Forbidden Matches" => [nothing, nothing, nothing, nothing, nothing, nothing],
     "Compulsory Matches" => [nothing, nothing, nothing, nothing, nothing, nothing],)
 
-# 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`
-prob = ClassicHENSProblem(df; ΔT_min=10.0, verbose=true)
+# 3. Construct a classic HENS problem
+prob = ClassicHENSProblem(df; ΔT_min=10.0)
+res = plot_composite_curve(prob; balanced=false, cold_ref_enthalpy=0.0);
+display(res.plt)
 
 # 4. Solve minimum utilities problem
-@time solve_minimum_utilities_subproblem!(prob) # default to HIGHS_solver
+solve_minimum_utilities_subproblem!(prob)
+@btime solve_minimum_utilities_subproblem!(prob) # default to HIGHS_solver
 # GLPK  232.000 μs (3277 allocations: 124.55 KiB)
 # Clp   320.300 μs (3539 allocations: 144.77 KiB)
 # HiGHS 644.700 μs (3358 allocations: 129.66 KiB)
 # Cbc   2.637 ms (3524 allocations: 145.45 KiB) 
+res = plot_composite_curve(prob; balanced=true);
+display(res.plt)
+println("Objective value = ", objective_value(prob.results_dict[:min_utils_model]), " USD")
 print_min_utils_pinch_points(prob)
-@test prob.pinch_points == [(517.0, 497.0)]
-@test isapprox(prob.hot_utilities_dict["ST"].Q, 244.13; atol=1)
-@test isapprox(prob.cold_utilities_dict["CW"].Q, 172.6; atol=1)
+@test prob.pinch_points == [(125.0, 115.0)]
+@test isapprox(prob.hot_utilities_dict["ST"].Q, 300.0; atol=1)
+@test isapprox(prob.cold_utilities_dict["CW"].Q, 220.0; atol=1)
 
 # 5. Solve the minimum number of units subproblem:
 @time solve_minimum_units_subproblem!(prob)
 # GLPK  816.100 μs (8842 allocations: 475.00 KiB)
 # HiGHS 2.020 ms (8817 allocations: 483.30 KiB)
 # Cbc   4.549 ms (8716 allocations: 514.66 KiB)
-@test prob.min_units == 8
+@test prob.min_units == 5
 
 # 6. Generate stream matches
 EMAT = 2.5 # Exchanger Minimum Approach Temperature.

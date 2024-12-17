@@ -88,8 +88,11 @@ function generate_stream_matches!(prob::ClassicHENSProblem, EMAT; level=:quatern
     =#
 
     # Post-processing
-    termination_status(model) == MathOptInterface.OPTIMAL || return println("`\n Stream Match Generator problem INFEASIBLE. Try changing number of units. \n")
-    post_HLD_matches!(prob, model, level; digits, verbose)
+    if termination_status(model) == MathOptInterface.OPTIMAL
+        post_HLD_matches!(prob, model, level; digits, verbose)
+    else
+        println("`\n Stream Match Generator problem INFEASIBLE. Try changing number of units. \n")
+    end
     return
 end
 
@@ -361,12 +364,12 @@ Displays HLD for Multiperiod problem
 """
 function print_HLD(prob::MultiPeriodFlexibleHENSProblem)
     println("Overall Units")
-    @show prob.results_dict[:y]
+    display(prob.results_dict[:y])
     println()
     for t in prob.period_names
-        println("PROBLEM $(t)")
+        println("PROBLEM $t")
         println("HLD \n")
-        @show prob.period_streams_dict[t].results_dict[:Q]
+        display(prob.period_streams_dict[t].results_dict[:Q])
         #println("HLD list")
         #@show prob.period_streams_dict[t].results_dict[:HLD_list]
         print("\n")
