@@ -84,17 +84,28 @@ Reads data from an XSLX file in `file_path_xlsx` and constructs a `ClassicHENSPr
 - By default `ΔT_min` is set to 10 °C.
 """
 function ClassicHENSProblem(file_path_xlsx::String; ΔT_min=10.0, verbose=false)
-    stream_data_dfs = DataFrame[]
     XLSX.openxlsx(file_path_xlsx) do xf
-        verbose && println("Num worksheets imported: ", XLSX.sheetcount(xf))
-        for sheet in XLSX.sheetnames(xf)
-            verbose && println("Importing sheet: $sheet")
-            push!(stream_data_dfs, DataFrame(XLSX.gettable(xf[sheet]; infer_eltypes=true)))
-        end
-    end
+        sheets = XLSX.sheetnames(xf)
+        if length(sheets) > 1
+            println("Worksheet name:")
+            for (i, sheet) in enumerate(sheets)
+                println("  └ $i. $sheet")
+            end
 
-    length(stream_data_dfs) == 1 || error("Only 1 stream data worksheet can be imported for `ClassicHENSProblem`")
-    return ClassicHENSProblem(stream_data_dfs[1]; ΔT_min)
+            selected_index = 0
+            while selected_index < 1 || selected_index > length(sheets)
+                print("Enter the number of worksheet to load (1-$(length(sheets))): ")
+                selected_index = parse(Int, readline())
+            end
+            sheet_to_import = sheets[selected_index]
+        else
+            sheet_to_import = sheets[1]
+        end
+
+        verbose && println("Importing sheet: $sheet_to_import")
+        stream_data_df = DataFrame(XLSX.gettable(xf[sheet_to_import]; infer_eltypes=true))
+        return ClassicHENSProblem(stream_data_df; ΔT_min)
+    end
 end
 
 # Column names of XLSX interface:
