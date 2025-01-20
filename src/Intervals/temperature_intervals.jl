@@ -357,12 +357,14 @@ function plot_composite_curve(prob::ClassicHENSProblem; verbose=false, balanced=
     end
     H_vals_cold .+= cold_ref_enthalpy
 
-    isnothing(x_limits) && (x_limits = (floor(Int, min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(H_vals_cold), minimum(H_vals_hot))), ceil(Int, round(max(maximum(H_vals_hot), maximum(H_vals_cold)), sigdigits=2))))
+    isnothing(x_limits) && (x_limits = (floor(min(hot_ref_enthalpy, cold_ref_enthalpy, minimum(H_vals_cold), minimum(H_vals_hot))), ceil(max(maximum(H_vals_hot), maximum(H_vals_cold)), sigdigits=1)))
 
-    isnothing(y_limits) && (y_limits = (floor(Int, min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(Int, max(maximum(T_vals_hot), maximum(T_vals_cold)))))
+    isnothing(y_limits) && (y_limits = (floor(min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(max(maximum(T_vals_hot), maximum(T_vals_cold)), sigdigits=1)))
 
-    plt = plot(H_vals_hot, T_vals_hot, ylabel=ylabel, xlabel=xlabel, color=:red, shape=:circle, legend=false, xlims=x_limits, ylims=y_limits, kwargs...)
-    plot!(H_vals_cold, T_vals_cold, color=:blue, shape=:circle, legend=false, kwargs...)
+    plt = plot(H_vals_hot, T_vals_hot, ylabel=ylabel, xlabel=xlabel, color=:red, shape=:circle, legend=false, xlims=x_limits, ylims=y_limits; kwargs...)
+    plot!(H_vals_cold, T_vals_cold, color=:blue, shape=:circle, legend=false)
+    verbose && display(plt)
+
     return (; plt, T_vals_hot, H_vals_hot, T_vals_cold, H_vals_cold)
 end
 

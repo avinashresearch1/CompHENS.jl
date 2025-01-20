@@ -17,8 +17,8 @@ df = DataFrame("Stream" => ["H1", "H2", "C1", "C2", "ST", "CW"],
 
 # 3. Construct a classic HENS problem
 prob = ClassicHENSProblem(df; ΔT_min=10.0)
-res = plot_composite_curve(prob; balanced=false, cold_ref_enthalpy=0.0);
-display(res.plt)
+res = plot_composite_curve(prob; balanced=false, cold_ref_enthalpy=300.0, background_color=:transparent, foreground_color_text=:white, foreground_color_axis=:white, foreground_color_border=:white, foreground_color_guide=:white, verbose=true);
+# balanced: get a balanced composite curve including utilities
 
 # 4. Solve minimum utilities problem
 solve_minimum_utilities_subproblem!(prob)
