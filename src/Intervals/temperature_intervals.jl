@@ -361,10 +361,13 @@ function plot_composite_curve(prob::ClassicHENSProblem; verbose=false, balanced=
 
     isnothing(y_limits) && (y_limits = (floor(min(minimum(T_vals_hot), minimum(T_vals_cold))), ceil(max(maximum(T_vals_hot), maximum(T_vals_cold)), sigdigits=1)))
 
-    plt = plot(H_vals_hot, T_vals_hot, ylabel=ylabel, xlabel=xlabel, color=:red, shape=:circle, legend=false, xlims=x_limits, ylims=y_limits; kwargs...)
-    plot!(H_vals_cold, T_vals_cold, color=:blue, shape=:circle, legend=false)
-    verbose && display(plt)
+    plt = plot(H_vals_hot, T_vals_hot, ylabel=ylabel, xlabel=xlabel, xlims=x_limits, ylims=y_limits, color=cgrad(:seismic)[70], legend=false; kwargs...)
+    quiver!(H_vals_hot[2:2], T_vals_hot[2:2], quiver=([H_vals_hot[1] - H_vals_hot[2]], [T_vals_hot[1] - T_vals_hot[2]]), arrow=:closed, color=cgrad(:seismic)[70])
 
+    plot!(H_vals_cold, T_vals_cold, color=cgrad(:seismic)[35], legend=false)
+    quiver!(H_vals_cold[end-1:end-1], T_vals_cold[end-1:end-1], quiver=([H_vals_cold[end] - H_vals_cold[end-1]], [T_vals_cold[end] - T_vals_cold[end-1]]), arrow=:closed, color=cgrad(:seismic)[35])
+
+    verbose && display(plt)
     return (; plt, T_vals_hot, H_vals_hot, T_vals_cold, H_vals_cold)
 end
 
