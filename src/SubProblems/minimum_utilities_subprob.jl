@@ -39,6 +39,7 @@ function solve_minimum_utilities_subproblem!(prob::ClassicHENSProblem; optimizer
         @show termination_status(model)
         @show primal_status(model)
         @show dual_status(model)
+        @show is_solved_and_feasible(model)
     end
 
     push!(prob.results_dict, :min_utils_model => model) # Removed the option to save the model. Bescause the model has already been created and memory has been allocated here, saving the model will not affect performance.

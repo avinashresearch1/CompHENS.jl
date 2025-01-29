@@ -14,29 +14,30 @@ using BenchmarkTools
 #     "Cost [\$/kW]" => [0, 0, 0, 200.0, 20.0],
 #     "Forbidden Matches" => [nothing, nothing, nothing, nothing, nothing],
 #     "Compulsory Matches" => [nothing, nothing, nothing, nothing, nothing]);
-df = DataFrame("Stream" => ["H1", "C1", "ST", "CW"],
-    "Type [H, C, HU or CU]" => ["H", "C", "HU", "CU"],
-    "Supply Temperature T_in [C or K]" => [50, 45, 210, 30],
-    "Target Temperature T_out [C or K]" => [40, 46, 209, 40],
-    "Heat Capacity mCp [kW/C or kW/K]" => [10, 0, NaN, NaN],
-    "Heat transfer coefficient h [kW/m2C or kW/m2K]" => [0.2, 0.2, 0.2, 0.2],
-    "Cost [\$/kW]" => [0, 0, 200.0, 20.0],
-    "Forbidden Matches" => [nothing, nothing, nothing, nothing],
-    "Compulsory Matches" => [nothing, nothing, nothing, nothing]);
+df = DataFrame("Stream" => ["H1", "H2", "C1", "ST", "CW"],
+    "Type [H, C, HU or CU]" => ["H", "H", "C", "HU", "CU"],
+    "Supply Temperature T_in [C or K]" => [45, 50, 50, 210, 30],
+    "Target Temperature T_out [C or K]" => [40, 45, 60, 209, 40],
+    "Heat Capacity mCp [kW/C or kW/K]" => [10, 10, 0.1, NaN, NaN],
+    "Heat transfer coefficient h [kW/m2C or kW/m2K]" => [0.2, 0.2, 0.2, 0.2, 0.2],
+    "Cost [\$/kW]" => [0, 0, 0, 200.0, 20.0],
+    "Forbidden Matches" => fill(nothing, 5),
+    "Compulsory Matches" => fill(nothing, 5));
 
 # 3. Construct a classic HENS problem
-prob = ClassicHENSProblem(df; ΔT_min=10.0)
+prob = ClassicHENSProblem(df; ΔT_min=5.0)
 res = plot_composite_curve(prob; balanced=false, cold_ref_enthalpy=0, background_color=:transparent, foreground_color_text=RGB(0.95), foreground_color_axis=RGB(0.95), foreground_color_border=RGB(0.95), foreground_color_guide=RGB(0.95), linewidth=1.5, verbose=true, ylimit=(0, 220));
 # balanced: get a balanced composite curve including utilities
 
 # 4. Solve minimum utilities problem
 # solve_minimum_utilities_subproblem!(prob) # minimize_utility_costs!()
-@time solve_minimum_utilities_subproblem!(prob) # default to HIGHS_solver
+@time solve_minimum_utilities_subproblem!(prob,verbose=true) # default to HIGHS_solver
 # GLPK  232.000 μs (3277 allocations: 124.55 KiB)
 # Clp   320.300 μs (3539 allocations: 144.77 KiB)
 # HiGHS 644.700 μs (3358 allocations: 129.66 KiB)
 # performance enhancements to 624.600 μs (3091 allocations: 111.84 KiB)
 # Cbc   2.637 ms (3524 allocations: 145.45 KiB) 
+
 res = plot_composite_curve(prob; balanced=true, background_color=:transparent, foreground_color_text=RGB(0.95), foreground_color_axis=RGB(0.95), foreground_color_border=RGB(0.95), foreground_color_guide=RGB(0.95), linewidth=1.5, verbose=true, ylimit=(0, 220));
 
 println("Objective value = ", objective_value(prob.results_dict[:min_utils_model]), " USD")
