@@ -2,7 +2,7 @@ module CompHENS
 
 using DocStringExtensions
 using Kwonly
-using JuMP
+using JuMP, HiGHS
 
 """
 $(TYPEDEF)
@@ -16,7 +16,7 @@ $(TYPEDEF)
 
 The classical Heat Exchanger Network Synthesis (HENS) problem.
 """
-abstract type AbstractHENSProblem  <: AbstractSynthesisProblem end
+abstract type AbstractHENSProblem <: AbstractSynthesisProblem end
 
 """
 $(TYPEDEF)
@@ -54,7 +54,7 @@ Holds the solution of an `AbstractSubProblem`
 """
 abstract type AbstractSubProblemSolution end
 
-export AbstractSynthesisProblem, AbstractSynthesisAlgorithm, AbstractSolution  
+export AbstractSynthesisProblem, AbstractSynthesisAlgorithm, AbstractSolution
 
 # Define own suitable for HENS.
 const smallest_value = 1e-12
@@ -65,12 +65,14 @@ export AbstractStream, HotStream, ColdStream, AbstractUtility, SimpleHotUtility,
 include("Streams/streams.jl")
 
 # Hold structures of problem types
+using DataFrames, XLSX
 export ClassicHENSProblem, MultiPeriodFlexibleHENSProblem
 include("ProblemConstructors/classic_hens_prob.jl")
 include("ProblemConstructors/multiperiod_flexible_hens_prob.jl")
 
 # Holds defaults the user may want to modify (e.g., solve options)
 export HIGHS_solver
+# using JuMP, HiGHS #, Ipopt, Alpine, SCIP, AmplNLWriter, Couenne_jll, Juniper
 include("user_defaults.jl")
 
 # Holds structures for processing the composite curve e.g., kink points
@@ -78,20 +80,23 @@ export Point
 include("Intervals/curve_points.jl")
 
 # Holds all kinds of temperature intervals
-export TemperatureInterval, TransshipmentInterval, 
-generate_transshipment_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve, 
-get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!, assign_all_streams_and_utilities!,
-get_primary_temperatures!, calculate_enthalpies!, get_secondary_temperatures!, get_tertiary_temperatures!, get_quaternary_temperatures!,
-LMTD, is_feasible
-
+using Plots
+export TemperatureInterval, TransshipmentInterval,
+    generate_transshipment_intervals, plot_hot_composite_curve, plot_cold_composite_curve, plot_composite_curve,
+    get_contribution, print_full, initialize_temperature_intervals, assign_stream!, assign_utility!, assign_all_streams_and_utilities!,
+    get_primary_temperatures!, calculate_enthalpies!, get_secondary_temperatures!, get_tertiary_temperatures!, get_quaternary_temperatures!,
+    LMTD, is_feasible
 include("Intervals/temperature_intervals.jl")
 
 export solve_minimum_utilities_subproblem!, print_min_utils_pinch_points
+# using JuMP, HiGHS
 include("SubProblems/minimum_utilities_subprob.jl")
 
 export solve_minimum_units_subproblem!
+# using JuMP, HiGHS
 include("SubProblems/minimum_number_of_units.jl")
 
+using NamedArrays, MathOptInterface # using JuMP, HiGHS
 export generate_stream_matches!, print_HLD
 include("SubProblems/generate_stream_matches.jl")
 
@@ -103,8 +108,6 @@ include("Superstructures/ParallelSplit.jl")
 export generate_network!, postprocess_network!, plot_HEN_streamwise, print_stream_results, get_design_area, AreaArithmeticMean, AreaPaterson, CostScaledPaterson, get_stream_graph
 include("SubProblems/Network_generation/network_generator_JuMP.jl")
 include("SubProblems/Network_generation/network_postprocess.jl")
-include("SubProblems/Network_generation/conda_networkx_plots.jl")
-
-
+# include("SubProblems/Network_generation/conda_networkx_plots.jl")
 
 end

@@ -8,8 +8,6 @@ using Test
 
 using BARON
 
-exportall(CompHENS)
-
 # 2. Specify path to xlsx file
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
 

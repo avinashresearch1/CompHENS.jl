@@ -1,4 +1,3 @@
-using JuMP, HiGHS#, Ipopt, Alpine, SCIP, AmplNLWriter, Couenne_jll, Juniper
 # Default solver configurations:
 # MILP
 const HIGHS_solver = JuMP.optimizer_with_attributes(
@@ -11,34 +10,30 @@ const HIGHS_solver = JuMP.optimizer_with_attributes(
 #=
 # NLP
 const IPOPT_solver = JuMP.optimizer_with_attributes(
-        Ipopt.Optimizer,
-        #MOI.Silent() => true,
-        "sb" => "yes",
-        "max_iter" => Int(1E4),
-        "max_wall_time" => 20.0
-    )
+    Ipopt.Optimizer,
+    #MOI.Silent() => true,
+    "sb" => "yes",
+    "max_iter" => Int(1E4),
+    "max_wall_time" => 20.0
+)
 
-const JUNIPER_solver = JuMP.optimizer_with_attributes(
-    Juniper.Optimizer,
-    "nl_solver"=>optimizer_with_attributes(Ipopt.Optimizer, "print_level"=>0)
-) 
-    
+# const JUNIPER_solver = JuMP.optimizer_with_attributes(
+#     Juniper.Optimizer,
+#     "nl_solver"=>optimizer_with_attributes(Ipopt.Optimizer, "print_level"=>0)
+# ) 
+
 #    optimizer_with_attributes(optimizer, "nl_solver" => optimizer_with_attributes(Ipopt.Optimizer, "print_level"=>0))
 
 #const COUENNE_solver = JuMP.optimizer_with_attributes(
 #    AmplNLWriter.Optimizer(Couenne_jll.amplexe)
 #)
 
-
-
 const SCIP_solver = JuMP.optimizer_with_attributes(
     SCIP.Optimizer,
     "display/verblevel" => 1,
     "limits/time" => 100.0
 )
-=#
 
-#=
 const ALPINE_solver = JuMP.optimizer_with_attributes(
     Alpine.Optimizer,
     "nlp_solver" => JuMP.optimizer_with_attributes(
