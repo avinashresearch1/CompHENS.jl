@@ -56,6 +56,7 @@ function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit=60
         @show termination_status(model)
         @show primal_status(model)
         @show dual_status(model)
+        @show value.(y)
     end
 
     # Post-processing
