@@ -15,45 +15,27 @@ struct ParallelSplit <: AbstractSplitSuperstructure
     edges::Union{Nothing, Vector{Edge}} 
 end
 
+"""
+Throw a clear warning + error for unsupported bounded-parallel superstructures.
+
+The current NLP workflow is validated only with `FloudasCiricGrossmann()`.
+"""
+function _parallel_split_unsupported()
+    @warn "BoundedParallel/ParallelSplit is unsupported for network generation. Use FloudasCiricGrossmann() for all streams and utilities."
+    error("ParallelSplit is disabled. Use FloudasCiricGrossmann().")
+end
+
 function ParallelSplit(; verbose = true)
-    verbose && @info "Using Superstructure: Parallel split of streams once at start and merge once at end" 
-    ParallelSplit(nothing, nothing)
+    _parallel_split_unsupported()
 end
 
 function ParallelSplit(stream::String, prob::ClassicHENSProblem; verbose = true)
-    nodes = Node[]
-    push!(nodes, Source("SO_$(stream)"))
-    push!(nodes, MajorSplitter("BS_$(stream)"))
-    for match in prob.results_dict[:HLD_list][stream]
-        push!(nodes,  HX("HX_$(stream)_$(match)", match))
-    end
-    push!(nodes,  MajorMixer("BM_$(stream)"))
-    push!(nodes,  Sink("SK_$(stream)"))
-
-    edges = Edge[]
-    for v in nodes
-        for node in define_out_nodes(v, nodes, ParallelSplit(; verbose = false))
-            push!(edges, Edge(v, node))
-        end
-    end
-
-    # Sanity tests
-    length(nodes) == length(prob.results_dict[:HLD_list][stream]) + 4 || error("Incorrect number of nodes generated!")
-    length(edges) == (2 + 2*length(prob.results_dict[:HLD_list][stream])) || error("Incorrect number of edges generated!")
-
-    for splitter in filter(v -> (v isa Splitter), nodes)
-        length(filter(edge -> edge.out == splitter, edges)) == 1 || error("Each splitter only has single incoming edge")
-    end
-
-    for mixer in filter(v -> (v isa Mixer), nodes)
-        length(filter(edge -> edge.in == mixer, edges)) == 1 || error("Each mixer only has a single outgoing edge")
-    end
-    return ParallelSplit(nodes, edges)
+    _parallel_split_unsupported()
 end
 
 # Macro to do this?
 function construct_superstructure(stream::String, superstructure::ParallelSplit, prob::ClassicHENSProblem; verbose = true)
-    ParallelSplit(stream, prob; verbose =  verbose)
+    _parallel_split_unsupported()
 end
 
 function define_out_nodes(node::MajorSplitter, nodes::Vector{Node}, superstructure::ParallelSplit) 

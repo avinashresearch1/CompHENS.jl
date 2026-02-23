@@ -4,11 +4,11 @@
 
 using Plots
 using JuMP
+using Ipopt
+using MathOptInterface
 using Test
+const MOI = MathOptInterface
 
-using BARON
-
-#exportall(CompHENS)
 
 # 2. Specify path to xlsx file
 file_path_xlsx = joinpath(@__DIR__, "Gundersen_4_stream.xlsx")
@@ -42,14 +42,12 @@ overall_network = construct_superstructure(prob.all_names, FloudasCiricGrossmann
 obj_func = CostScaledPaterson()
 base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
 
-# 7.i. Commercial using BARON:
-optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1)
-results_df = generate_network!(prob, EMAT; optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
-
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 8000, "tol" => 1e-6)
+results_df = generate_network!(prob, EMAT; overall_network = overall_network, optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+@show termination_status(model)
 model = prob.results_dict[:network_gen_model]
-file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/XLSX_interface/ClassicHENSProblem/Gundersen_4_stream/Gundersen_4_stream.pdf"
-
-plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@test primal_status(model) == MOI.FEASIBLE_POINT
 
 #=Trials
 #CompHENS.

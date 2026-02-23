@@ -1,6 +1,5 @@
 using JuMP
 using HiGHS
-using NamedArrays
 using MathOptInterface
 
 """
@@ -111,8 +110,8 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
 
     Q_match = zeros(Float64, length(C_set), length(H_set))
     y_match = zeros(Int, length(C_set), length(H_set))
-    Q = NamedArray(Q_match, (C_set, H_set))
-    y = NamedArray(y_match, (C_set, H_set))
+    Q = JuMP.Containers.DenseAxisArray(Q_match, C_set, H_set)
+    y = JuMP.Containers.DenseAxisArray(y_match, C_set, H_set)
     
     for i in H_set
         for j in C_set
@@ -157,24 +156,27 @@ function post_HLD_matches!(prob::ClassicHENSProblem, model::AbstractModel, level
     return
 end
 
-#= Deprecated
 """
 $(TYPEDSIGNATURES)
 
-Displays the matches and heat load distribution in a 2-D matrix form. 
+Displays the current heat-load distribution matrix for `ClassicHENSProblem`.
+Returns a `DenseAxisArray` indexed by cold-side names (rows) and hot-side names (columns).
 """
-function print_HLD(prob::ClassicHENSProblem)
-    hot_names = vcat(prob.stream_names[:hot_streams], prob.stream_names[:hot_utilities])
-    cold_names = vcat(prob.stream_names[:cold_streams], prob.stream_names[:cold_utilities])
-    Q = zeros(Float64, length(cold_names), length(hot_names))
-    hld = NamedArray(Q, (cold_names, hot_names))
-    for (name,val) in enamerate(hld)
-        hld[name[1], name[2]] = round(prob.results_dict[:Q][(name[2], name[1])]; digits = 1) 
+function print_HLD(prob::ClassicHENSProblem; digits = 1)
+    haskey(prob.results_dict, :Q) || error("Heat load data not available. Run `generate_stream_matches!` first.")
+    hot_names = prob.hot_names
+    cold_names = prob.cold_names
+
+    hld = JuMP.Containers.DenseAxisArray(zeros(Float64, length(cold_names), length(hot_names)), cold_names, hot_names)
+    for hot in hot_names
+        for cold in cold_names
+            hld[cold, hot] = round(prob.results_dict[:Q][cold, hot]; digits = digits)
+        end
     end
+
     @show hld
     return hld
 end
-=#
 
 """
 $(TYPEDSIGNATURES)
@@ -318,10 +320,10 @@ function post_HLD_matches!(prob::MultiPeriodFlexibleHENSProblem, model::Abstract
     end
 
     y_match = zeros(Int, length(C_set), length(H_set))
-    y = NamedArray(y_match, (C_set, H_set))
+    y = JuMP.Containers.DenseAxisArray(y_match, C_set, H_set)
     for t in prob.period_names
         Q_match = zeros(Float64, length(C_set), length(H_set))
-        Q = NamedArray(Q_match, (C_set, H_set))
+        Q = JuMP.Containers.DenseAxisArray(Q_match, C_set, H_set)
         for i in H_set
             for j in C_set
                 y[j,i] = round(value(model[:y][i,j]); digits = 0)
@@ -378,4 +380,3 @@ function print_HLD(prob::MultiPeriodFlexibleHENSProblem)
     end
     return
 end
-

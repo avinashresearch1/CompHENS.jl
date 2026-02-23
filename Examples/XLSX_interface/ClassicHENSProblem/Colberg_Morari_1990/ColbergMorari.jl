@@ -4,11 +4,10 @@
 using Plots
 using JuMP
 using HiGHS
+using Ipopt
+using MathOptInterface
 using Test
-
-using BARON
-
-exportall(CompHENS)
+const MOI = MathOptInterface
 
 # 2. Specify path to xlsx file
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
@@ -39,16 +38,14 @@ prob.results_dict[:Q]
 obj_func = CostScaledPaterson()
 overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, FloudasCiricGrossmann(), prob))
 base_cost, cost_coeff, scaling_coeff = 8600, 670, 0.83
-optimizer = BARON.Optimizer
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 5000, "tol" => 1e-6)
 
-generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true, time_limit = 20.0)
+generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 model = prob.results_dict[:network_gen_model]
-#print(model)
-file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Result_Plots/Colberg_Morari.pdf"
-
-plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
-#stream = "C2"
-#CompHENS.print_stream_results(stream, prob, model, overall_network[stream])
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@show termination_status(model)
+@test primal_status(model) == MOI.FEASIBLE_POINT
+# print(model)
 value.(model[:ΔT_upper])
 value.(model[:ΔT_lower])
 value.(model[:T_LMTD])

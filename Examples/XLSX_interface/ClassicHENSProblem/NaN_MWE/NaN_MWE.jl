@@ -2,8 +2,10 @@
 using Plots
 using JuMP
 using HiGHS
+using Ipopt
+using MathOptInterface
 using Test
-using BARON
+const MOI = MathOptInterface
 
 file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_KangLiu_Period1.xlsx")
 prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 10, verbose = true)
@@ -41,10 +43,9 @@ overall_network = construct_superstructure(prob.all_names, FloudasCiricGrossmann
 obj_func = CostScaledPaterson()
 base_cost, cost_coeff, scaling_coeff = 4000, 500, 0.83
 
-optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => 20.0, "AbsConFeasTol" => 1.5)
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 8000, "tol" => 1e-6)
 results_df = generate_network!(prob, EMAT; optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 
 model = prob.results_dict[:network_gen_model]
-file_name = "/home/avinash/Desktop/COMPHENS/CompHENS.jl/Examples/XLSX_interface/ClassicHENSProblem/NaN_MWE/KangLiu_Period1.pdf"
-
-plot_HEN_streamwise(prob, model, overall_network, file_name; digits = 1)
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@test primal_status(model) == MOI.FEASIBLE_POINT

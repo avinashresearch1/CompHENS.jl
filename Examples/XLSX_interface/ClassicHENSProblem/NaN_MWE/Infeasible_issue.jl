@@ -5,9 +5,11 @@
 using Plots
 using JuMP
 using HiGHS
+using Ipopt
+using MathOptInterface
 using Test
+const MOI = MathOptInterface
 
-using BARON
 #using XLSX
 #using DataFrames
 
@@ -35,7 +37,10 @@ overall_network = construct_superstructure(prob.all_names, FloudasCiricGrossmann
 obj_func = CostScaledPaterson()
 base_cost, cost_coeff, scaling_coeff =  8333.3,  641.7, 1
 
-optimizer = optimizer_with_attributes(BARON.Optimizer, "MaxTime" => -1, "AbsConFeasTol" => 10)
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 10000, "tol" => 1e-6)
 results_df = generate_network!(prob, EMAT; optimizer = optimizer, obj_func = obj_func, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+model = prob.results_dict[:network_gen_model]
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@test primal_status(model) == MOI.FEASIBLE_POINT
 
 prob.results_dict[:HLD_list]

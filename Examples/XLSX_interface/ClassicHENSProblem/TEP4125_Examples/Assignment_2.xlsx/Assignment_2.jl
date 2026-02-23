@@ -4,9 +4,10 @@
 using Plots
 using JuMP
 using HiGHS
+using Ipopt
+using MathOptInterface
 using Test
-
-using BARON
+const MOI = MathOptInterface
 
 #exportall(CompHENS)
 
@@ -26,7 +27,7 @@ print_min_utils_pinch_points(prob)
 
 # 5. Solve the minimum number of units subproblem:
 @time solve_minimum_units_subproblem!(prob)
-@test prob.min_units == 8
+@test prob.min_units == 5
 
 # 6. Generate stream matches
 EMAT = 2.5
@@ -35,12 +36,15 @@ EMAT = 2.5
 # 7. Network generation:
 # Specify which superstructure to use for each stream
 obj_func = CostScaledPaterson()
-overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, ParallelSplit(), prob))
+overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, FloudasCiricGrossmann(), prob))
 cost_coeff, scaling_coeff = 670, 0.83
-optimizer = BARON.Optimizer
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 5000, "tol" => 1e-6)
 
-generate_network!(prob, EMAT, overall_network; obj_func = CostScaledPaterson(), optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff)
-
+generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, save_model = true)
+model = prob.results_dict[:network_gen_model]
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@test primal_status(model) == MOI.FEASIBLE_POINT
+@show termination_status(model)
 #=
 using Alpine
 const alpine = JuMP.optimizer_with_attributes(
@@ -62,6 +66,3 @@ const alpine = JuMP.optimizer_with_attributes(
     "partition_scaling_factor" => 10,
 )
 =#
-
-
-

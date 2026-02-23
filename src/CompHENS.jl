@@ -102,6 +102,7 @@ include("Superstructures/ParallelSplit.jl")
 
 export generate_network!, postprocess_network!, plot_HEN_streamwise, print_stream_results, get_design_area, AreaArithmeticMean, AreaPaterson, CostScaledPaterson, get_stream_graph
 include("SubProblems/Network_generation/network_generator_JuMP.jl")
+include("SubProblems/Network_generation/starting_point_generator.jl")
 include("SubProblems/Network_generation/network_postprocess.jl")
 include("SubProblems/Network_generation/conda_networkx_plots.jl")
 

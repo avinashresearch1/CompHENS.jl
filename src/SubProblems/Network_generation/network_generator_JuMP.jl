@@ -43,6 +43,11 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     haskey(prob.results_dict, :HLD_list) || error("Match list data not available. Solve corresponding subproblem first.")
     haskey(prob.results_dict, :T_bounds) || generate_temperature_bounds!(prob)
 
+    if any(!(super isa FloudasCiricGrossmann) for super in values(overall_network))
+        @warn "BoundedParallel/ParallelSplit is unsupported. Rebuild overall_network with FloudasCiricGrossmann() for every stream and utility."
+        error("Unsupported superstructure detected. Only FloudasCiricGrossmann() is supported.")
+    end
+
     #y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
     
     model = Model()
@@ -66,9 +71,6 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     # 1. Declaring the stream-wise variables
     @variable(model, 0.0 <= t[all_e_tuple_vec])
     @variable(model, 0.0 <= f[stream_e_tuple_vec])
-
-    # [WIP]
-    # set_starting_values && set_start_values(prob, EMAT, overall_network; verbose = verbose)
 
     # 2. Sets stream-wise constraints
     for stream in prob.all_names
@@ -97,6 +99,13 @@ function generate_network!(prob::ClassicHENSProblem, EMAT; optimizer, overall_ne
     end
     
     set_objective_func!(model, HLD_list, obj_func, prob, EMAT; U_dict = U_dict, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost)
+
+    # If user did not pass explicit starts, build combinatorial mCp-inspired starts.
+    # This keeps backward compatibility with explicit `initial_values` while improving
+    # IPOPT robustness on challenging networks.
+    if isnothing(initial_values) && set_starting_values
+        initial_values = build_network_start_values(prob, model, EMAT, overall_network, HLD_list; verbose = verbose)
+    end
 
     # initial_values are a named tuple of (; v_names::Vector{VariableRef}, v_starts::Vector{Any})
     if !isnothing(initial_values)
@@ -353,4 +362,3 @@ function set_match_objective!(hot::Union{HotStream, SimpleHotUtility}, cold::Uni
     @NLconstraint(hot_prob, hot_prob[:match_objective][cold.name] == coeff/(((2/3)*(hot_prob[:ΔT_upper][cold.name]*hot_prob[:ΔT_lower][cold.name])^0.5) - (1/6)*(hot_prob[:ΔT_upper][cold.name] + hot_prob[:ΔT_lower][cold.name]))) # Necessary to avoid the parsing error.
 end
 =#
-
