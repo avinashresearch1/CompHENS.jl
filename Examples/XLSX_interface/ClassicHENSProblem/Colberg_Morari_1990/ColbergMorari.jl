@@ -43,6 +43,7 @@ optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_
 generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
 model = prob.results_dict[:network_gen_model]
 @test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@show termination_status(model)
 @test primal_status(model) == MOI.FEASIBLE_POINT
 # print(model)
 value.(model[:ΔT_upper])

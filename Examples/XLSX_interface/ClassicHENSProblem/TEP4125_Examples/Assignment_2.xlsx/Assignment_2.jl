@@ -44,7 +44,7 @@ generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_
 model = prob.results_dict[:network_gen_model]
 @test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
 @test primal_status(model) == MOI.FEASIBLE_POINT
-
+@show termination_status(model)
 #=
 using Alpine
 const alpine = JuMP.optimizer_with_attributes(
