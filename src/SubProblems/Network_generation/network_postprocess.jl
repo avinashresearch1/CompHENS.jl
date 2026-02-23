@@ -22,6 +22,9 @@ Displays the matches and heat load distribution in a 2-D matrix form, maintains 
 """
 function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HLD_list, overall_network; results_path = nothing, visualize = true, digits = 4, display = true)
     results_df = DataFrame()
+    # Persist per-match area values so `get_design_area(prob)` remains valid
+    # for all example workflows after network generation.
+    areas = Dict{Tuple{String, String}, Float64}()
     match = HLD_list[1]
     for match in HLD_list
         hot, cold = match[1], match[2]
@@ -42,8 +45,10 @@ function postprocess_network!(prob::ClassicHENSProblem, model::AbstractModel, HL
         ΔT_lower = smallest_value + value(model[:ΔT_lower][match])
         LMTD = (ΔT_upper - ΔT_lower)/(smallest_value + log(ΔT_upper/ΔT_lower)) # Probable numerical issues.
         area = prob.results_dict[:Q][match[2], match[1]]/(LMTD*U(prob.all_dict[hot], prob.all_dict[cold]))
+        areas[(hot, cold)] = area
         push!(results_df, (Hot_stream = hot, Q = prob.results_dict[:Q][match[2], match[1]], Tin_Hot = value(model[:t][(hot, hot_hx_in_edge)]), Tout_Hot = value(model[:t][(hot, hot_hx_out_edge)]), Cold_stream = cold, Tin_Cold = value(model[:t][(cold, cold_hx_in_edge)]), Tout_Cold = value(model[:t][(cold, cold_hx_out_edge)]), ΔT_upper = ΔT_upper, ΔT_lower = ΔT_lower, LMTD = LMTD, U = U(prob.all_dict[hot], prob.all_dict[cold]), Area = area))
     end
+    prob.results_dict[:areas] = areas
     return results_df
 end
 
@@ -68,4 +73,3 @@ function get_design_area(prob::MultiPeriodFlexibleHENSProblem)
     end
     return area
 end
-

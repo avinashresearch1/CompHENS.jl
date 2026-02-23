@@ -1,225 +1,563 @@
-#[WIP]
-using CompHENS
-pk_dir = pkgdir(CompHENS)
-include(joinpath(pk_dir, "Examples", "XLSX_interface", "ClassicHENSProblem", "Gundersen_4_stream", "Gundersen_4_stream.jl"))
-exportall(CompHENS)
+using JuMP
 
-#verbose && @info "Solving the Network Generation subproblem"
+"""
+Heuristic warm-start builder for network generation NLPs.
 
-haskey(prob.results_dict, :y) || error("Stream match data not available. Solve corresponding subproblem first.")
-haskey(prob.results_dict, :Q) || error("HLD data not available. Solve corresponding subproblem first.")
-haskey(prob.results_dict, :HLD_list) || error("Match list data not available. Solve corresponding subproblem first.")
-haskey(prob.results_dict, :T_bounds) || CompHENS.generate_temperature_bounds!(prob)
+Implementation notes:
+1. Mirrors the combinatorial mCp flow at a practical level: prioritize utility-quality matches,
+   attempt serial placement when feasible, and use paraT/alpha weighting for fallback parallel splits.
+2. Produces starts for stream-edge temperatures/flows and match-level ΔT/LMTD terms.
+3. Keeps all logic data-driven from `prob.results_dict[:HLD_list]` and `prob.results_dict[:Q]`.
+"""
 
-#y, Q = prob.results_dict[:y],  prob.results_dict[:Q]
-
-model = Model()
-
-# Tuple set with stream and utility s and Edge e
-all_e_tuple_vec = []
-for stream in prob.all_names
-    for edge in overall_network[stream].edges
-        push!(all_e_tuple_vec, (stream, edge))
-    end
-end
-
-# Tuple set with only streams (not utilities) and edges e
-stream_e_tuple_vec = []
-for stream in prob.stream_names
-    for edge in overall_network[stream].edges
-        push!(stream_e_tuple_vec, (stream, edge))
-    end
-end
-
-# 1. Declaring the stream-wise variables
-@variable(model, 0.0 <= t[all_e_tuple_vec])
-@variable(model, 0.0 <= f[stream_e_tuple_vec])
-
-
-
-#TODO:
-
-function test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
-    terminal_feasible = false
-    if (hot_T_out >= cold_T_in + EMAT) && (hot_T_in >= cold_T_out + EMAT)
-        terminal_feasible = true
-    end 
-    return (; terminal_feasible, hot_T_out, hot_T_in, cold_T_out, cold_T_in)
+"""
+Return heat load `Q` for a hot stream to one matched cold stream/utility.
+"""
+function _stream_heat_load(prob::ClassicHENSProblem, stream::HotStream, match_name::String)
+    return prob.results_dict[:Q][match_name, stream.name]
 end
 
 """
-Test if the `matching_stream` can be feasibly placed as the terminal serial heat exchanger of the `stream`
+Return heat load `Q` for a cold stream to one matched hot stream/utility.
 """
-function test_terminal_match(stream_name::String, matching_stream_name::String, EMAT, overall_network)
-    test_terminal_match(prob.all_dict[stream_name], prob.all_dict[matching_stream_name], EMAT, overall_network)
+function _stream_heat_load(prob::ClassicHENSProblem, stream::ColdStream, match_name::String)
+    return prob.results_dict[:Q][stream.name, match_name]
 end
 
-stream_name = "C2"
-matching_stream_name = "ST"
+"""
+Return mCp for streams and a safe proxy for utilities.
+Utilities do not own mCp in this model, so a positive proxy keeps split formulas stable.
+"""
+function _mcp_or_proxy(stream)
+    if stream isa Union{HotStream, ColdStream}
+        return max(stream.mcp, smallest_value)
+    end
+    return 1.0
+end
 
-cold_stream = prob.all_dict[stream_name]
-hot_matching_stream = prob.all_dict[matching_stream_name]
+"""
+Order matches for a hot stream by utility preference and heat quality.
 
-function test_terminal_match(cold_stream::Union{ColdStream}, hot_matching_stream::Union{HotStream, SimpleHotUtility}, EMAT, overall_network)
+Rationale:
+1. Cold utilities are prioritized at stream terminal positions.
+2. Then sort by descending cold `T_out` to place tighter-quality cold matches earlier.
+"""
+function _ordered_matches(prob::ClassicHENSProblem, stream::HotStream)
+    matches = copy(prob.results_dict[:HLD_list][stream.name])
+    sort!(matches; by = m -> begin
+        s = prob.all_dict[m]
+        util_priority = s isa SimpleColdUtility ? 1 : 0
+        quality = -s.T_out
+        (util_priority, quality)
+    end)
+    return matches
+end
 
-    Q = prob.results_dict[:Q][cold_stream.name, hot_matching_stream.name]
+"""
+Order matches for a cold stream by utility preference and heat quality.
 
-    hot_T_out = overall_network[hot_matching_stream.name].metadata["Working Terminal T"]
-    if hot_matching_stream isa SimpleHotUtility
-        hot_T_in = hot_matching_stream.T_in
+Rationale:
+1. Hot utilities are prioritized at stream terminal positions.
+2. Then sort by ascending hot `T_out` so lower-quality hot matches are allocated first.
+"""
+function _ordered_matches(prob::ClassicHENSProblem, stream::ColdStream)
+    matches = copy(prob.results_dict[:HLD_list][stream.name])
+    sort!(matches; by = m -> begin
+        s = prob.all_dict[m]
+        util_priority = s isa SimpleHotUtility ? 1 : 0
+        quality = s.T_out
+        (util_priority, quality)
+    end)
+    return matches
+end
+
+function _ordered_matches(prob::ClassicHENSProblem, stream::AbstractUtility)
+    return copy(prob.results_dict[:HLD_list][stream.name])
+end
+
+"""
+Return the unique HX node in one stream superstructure corresponding to one match.
+"""
+function _find_hx(superstructure::AbstractSplitSuperstructure, match_name::String)
+    return only(filter(v -> v.match == match_name, superstructure.hxs))
+end
+
+"""
+Return the unique edge from `in_node` to `out_node` inside a superstructure.
+"""
+function _find_edge(superstructure::AbstractSplitSuperstructure, in_node::Node, out_node::Node)
+    return only(filter(e -> e.in == in_node && e.out == out_node, superstructure.edges))
+end
+
+"""
+Propagate source-side stream temperature across outgoing splitter edges.
+
+Why:
+To keep physically consistent starts before nonlinear mixer constraints are enforced.
+"""
+function _set_splitter_temperatures!(t_start::Dict{Edge, Float64}, stream_name::String, superstructure::AbstractSplitSuperstructure)
+    source_edge = only(out_edges(only(superstructure.source), superstructure))
+    source_temp = t_start[source_edge]
+    for splitter in superstructure.splitters
+        edge_in = only(in_edges(splitter, superstructure))
+        source_temp = get(t_start, edge_in, source_temp)
+        for edge_out in out_edges(splitter, superstructure)
+            t_start[edge_out] = source_temp
+        end
+    end
+    return
+end
+
+"""
+Check serial-feasibility for one hot stream across an ordered match list.
+
+The check uses both upper and lower approach temperature constraints with EMAT.
+"""
+function _serial_feasible(prob::ClassicHENSProblem, stream::HotStream, matches::Vector{String}, EMAT)
+    mcp = max(stream.mcp, smallest_value)
+    current_T = stream.T_in
+    for match in matches
+        q = _stream_heat_load(prob, stream, match)
+        other = prob.all_dict[match]
+        hot_in = current_T
+        hot_out = current_T - q / mcp
+
+        if other isa ColdStream
+            other_mcp = max(other.mcp, smallest_value)
+            cold_in = other.T_in
+            cold_out = cold_in + q / other_mcp
+        elseif other isa SimpleColdUtility
+            cold_in = other.T_in
+            cold_out = other.T_out
+        else
+            return false
+        end
+
+        if !(hot_in >= cold_out + EMAT && hot_out >= cold_in + EMAT)
+            return false
+        end
+        current_T = hot_out
+    end
+    return true
+end
+
+"""
+Check serial-feasibility for one cold stream across an ordered match list.
+
+The check uses both upper and lower approach temperature constraints with EMAT.
+"""
+function _serial_feasible(prob::ClassicHENSProblem, stream::ColdStream, matches::Vector{String}, EMAT)
+    mcp = max(stream.mcp, smallest_value)
+    current_T = stream.T_in
+    for match in matches
+        q = _stream_heat_load(prob, stream, match)
+        other = prob.all_dict[match]
+        cold_in = current_T
+        cold_out = current_T + q / mcp
+
+        if other isa HotStream
+            other_mcp = max(other.mcp, smallest_value)
+            hot_in = other.T_in
+            hot_out = hot_in - q / other_mcp
+        elseif other isa SimpleHotUtility
+            hot_in = other.T_in
+            hot_out = other.T_out
+        else
+            return false
+        end
+
+        if !(hot_in >= cold_out + EMAT && hot_out >= cold_in + EMAT)
+            return false
+        end
+        current_T = cold_out
+    end
+    return true
+end
+
+function _serial_feasible(prob::ClassicHENSProblem, stream::AbstractUtility, matches::Vector{String}, EMAT)
+    return false
+end
+
+"""
+Compute combinatorial-style parallel split weights for one stream.
+
+Formula implemented from extracted method:
+1. `paraT = quality_dT + Q/mCp_other`
+2. `alpha = Q/paraT`
+3. `split = alpha / sum(alpha)`
+"""
+function _parallel_split_weights(prob::ClassicHENSProblem, stream::Union{HotStream, ColdStream}, matches::Vector{String}, EMAT)
+    alpha = Float64[]
+    for match in matches
+        q = _stream_heat_load(prob, stream, match)
+        other = prob.all_dict[match]
+        other_mcp = _mcp_or_proxy(other)
+
+        quality_dT = if stream isa HotStream
+            stream.T_in - other.T_out
+        else
+            other.T_in - stream.T_in
+        end
+        paraT = max(quality_dT, EMAT / 10) + q / other_mcp
+        push!(alpha, q / max(paraT, smallest_value))
+    end
+
+    total = sum(alpha)
+    if total <= smallest_value
+        qvals = [_stream_heat_load(prob, stream, m) for m in matches]
+        total_q = max(sum(qvals), smallest_value)
+        return [q / total_q for q in qvals]
+    end
+    return [a / total for a in alpha]
+end
+
+"""
+Uniform split fallback for utility-only branches.
+"""
+function _parallel_split_weights(prob::ClassicHENSProblem, stream::AbstractUtility, matches::Vector{String}, EMAT)
+    n = max(length(matches), 1)
+    return fill(1.0 / n, n)
+end
+
+"""
+Initialize per-edge temperature/flow starts with source/sink anchors.
+"""
+function _initialize_stream_defaults!(prob::ClassicHENSProblem, stream_name::String, superstructure::AbstractSplitSuperstructure)
+    stream = prob.all_dict[stream_name]
+    t_start = Dict{Edge, Float64}(edge => stream.T_in for edge in superstructure.edges)
+    f_start = Dict{Edge, Float64}(edge => 0.0 for edge in superstructure.edges)
+
+    source_edge = only(out_edges(only(superstructure.source), superstructure))
+    sink_edge = only(in_edges(only(superstructure.sink), superstructure))
+    t_start[source_edge] = stream.T_in
+    t_start[sink_edge] = stream.T_out
+
+    if stream isa Union{HotStream, ColdStream}
+        f_start[source_edge] = stream.mcp
+        f_start[sink_edge] = stream.mcp
+    end
+
+    return t_start, f_start
+end
+
+"""
+Apply serial warm-starts over ordered matches for split superstructures.
+
+Effect:
+1. Sends full stream mCp through one active branch at a time.
+2. Connects branch exits serially toward subsequent matches.
+3. Updates edge temperatures through each exchanged heat load.
+"""
+function _apply_serial_starts!(prob::ClassicHENSProblem, stream::Union{HotStream, ColdStream}, superstructure::AbstractSplitSuperstructure, matches::Vector{String}, t_start::Dict{Edge, Float64}, f_start::Dict{Edge, Float64})
+    mcp = max(stream.mcp, smallest_value)
+    source_node = only(superstructure.source)
+    bs_node = only(get_destination_nodes(source_node, superstructure))
+
+    current_T = stream.T_in
+    source_edge = only(out_edges(source_node, superstructure))
+    t_start[source_edge] = stream.T_in
+
+    for edge in out_edges(bs_node, superstructure)
+        t_start[edge] = stream.T_in
+    end
+
+    for (i, match) in enumerate(matches)
+        hx = _find_hx(superstructure, match)
+        hx_in_edge = only(in_edges(hx, superstructure))
+        hx_out_edge = only(out_edges(hx, superstructure))
+
+        sm_node = only(get_source_nodes(hx, superstructure))
+        bs_to_sm = _find_edge(superstructure, bs_node, sm_node)
+
+        # In serial mode, only the first match receives flow directly from the
+        # major splitter. Downstream matches are fed by upstream minor splitters.
+        if i == 1
+            f_start[bs_to_sm] = stream.mcp
+        else
+            f_start[bs_to_sm] = 0.0
+        end
+        f_start[hx_in_edge] = stream.mcp
+        f_start[hx_out_edge] = stream.mcp
+
+        t_start[hx_in_edge] = current_T
+
+        q = _stream_heat_load(prob, stream, match)
+        next_T = if stream isa HotStream
+            current_T - q / mcp
+        else
+            current_T + q / mcp
+        end
+        t_start[hx_out_edge] = next_T
+
+        ss_node = only(get_destination_nodes(hx, superstructure))
+        if i < length(matches)
+            next_hx = _find_hx(superstructure, matches[i + 1])
+            next_sm = only(get_source_nodes(next_hx, superstructure))
+            link_edge = _find_edge(superstructure, ss_node, next_sm)
+            f_start[link_edge] = stream.mcp
+            t_start[link_edge] = next_T
+        else
+            bm_node = only(superstructure.major_mixer)
+            ss_to_bm = _find_edge(superstructure, ss_node, bm_node)
+            f_start[ss_to_bm] = stream.mcp
+            t_start[ss_to_bm] = next_T
+        end
+
+        current_T = next_T
+    end
+
+    sink_edge = only(in_edges(only(superstructure.sink), superstructure))
+    t_start[sink_edge] = current_T
+    f_start[sink_edge] = stream.mcp
+
+    _set_splitter_temperatures!(t_start, stream.name, superstructure)
+    return
+end
+
+"""
+Apply parallel warm-starts over ordered matches using computed split fractions.
+
+Effect:
+1. Splits mCp across branches according to paraT/alpha weighting.
+2. Computes each branch outlet temperature from assigned branch flow and heat load.
+3. Mixes branch outlets to seed sink temperature.
+"""
+function _apply_parallel_starts!(prob::ClassicHENSProblem, stream::Union{HotStream, ColdStream}, superstructure::AbstractSplitSuperstructure, matches::Vector{String}, t_start::Dict{Edge, Float64}, f_start::Dict{Edge, Float64}, EMAT)
+    split = _parallel_split_weights(prob, stream, matches, EMAT)
+    source_node = only(superstructure.source)
+    bs_node = only(get_destination_nodes(source_node, superstructure))
+    bm_node = only(superstructure.major_mixer)
+
+    source_edge = only(out_edges(source_node, superstructure))
+    t_start[source_edge] = stream.T_in
+
+    for edge in out_edges(bs_node, superstructure)
+        t_start[edge] = stream.T_in
+    end
+
+    branch_T_out = Float64[]
+    branch_f = Float64[]
+
+    for (i, match) in enumerate(matches)
+        hx = _find_hx(superstructure, match)
+        hx_in_edge = only(in_edges(hx, superstructure))
+        hx_out_edge = only(out_edges(hx, superstructure))
+
+        # Keep branch-flow conservation exact at the major mixer.
+        # A nonzero denominator safeguard is applied only in temperature update.
+        f_branch = split[i] * stream.mcp
+        q = _stream_heat_load(prob, stream, match)
+        t_out = if stream isa HotStream
+            stream.T_in - q / max(f_branch, smallest_value)
+        else
+            stream.T_in + q / max(f_branch, smallest_value)
+        end
+
+        if hx_in_edge.in == bs_node
+            f_start[hx_in_edge] = f_branch
+            t_start[hx_in_edge] = stream.T_in
+        else
+            sm_node = hx_in_edge.in
+            bs_to_sm = _find_edge(superstructure, bs_node, sm_node)
+            f_start[bs_to_sm] = f_branch
+            t_start[bs_to_sm] = stream.T_in
+            f_start[hx_in_edge] = f_branch
+            t_start[hx_in_edge] = stream.T_in
+        end
+
+        f_start[hx_out_edge] = f_branch
+        t_start[hx_out_edge] = t_out
+
+        if hx_out_edge.out == bm_node
+            f_start[hx_out_edge] = f_branch
+            t_start[hx_out_edge] = t_out
+        else
+            ss_node = hx_out_edge.out
+            ss_to_bm = _find_edge(superstructure, ss_node, bm_node)
+            f_start[ss_to_bm] = f_branch
+            t_start[ss_to_bm] = t_out
+        end
+
+        push!(branch_T_out, t_out)
+        push!(branch_f, f_branch)
+    end
+
+    sink_edge = only(in_edges(only(superstructure.sink), superstructure))
+    mixed_T = sum(branch_T_out[i] * branch_f[i] for i in eachindex(branch_f)) / max(sum(branch_f), smallest_value)
+    t_start[sink_edge] = mixed_T
+    f_start[sink_edge] = sum(branch_f)
+
+    _set_splitter_temperatures!(t_start, stream.name, superstructure)
+    return
+end
+
+"""
+Seed utility stream temperatures around HX-adjacent edges.
+
+Utilities do not carry `f` variables in this formulation.
+"""
+function _apply_utility_starts!(stream::AbstractUtility, superstructure::AbstractSplitSuperstructure, t_start::Dict{Edge, Float64})
+    source_edge = only(out_edges(only(superstructure.source), superstructure))
+    sink_edge = only(in_edges(only(superstructure.sink), superstructure))
+    t_start[source_edge] = stream.T_in
+    t_start[sink_edge] = stream.T_out
+
+    for edge in superstructure.edges
+        if edge.in isa HX
+            t_start[edge] = stream.T_out
+        elseif edge.out isa HX
+            t_start[edge] = stream.T_in
+        end
+    end
+    return
+end
+
+"""
+Validate that candidate stream starts stay within declared model bounds.
+
+This is used as a guardrail for parallel warm starts: if a split allocation
+drives branch temperatures/flows out of bounds, we fall back to serial starts.
+"""
+function _starts_within_bounds(prob::ClassicHENSProblem, stream::Union{HotStream, ColdStream}, superstructure::AbstractSplitSuperstructure, t_start::Dict{Edge, Float64}, f_start::Dict{Edge, Float64}; atol = 1e-6)
+    t_low, t_high = prob.results_dict[:T_bounds][stream.name]
+    f_high = max(stream.mcp, 0.0)
+
+    for edge in superstructure.edges
+        t_val = get(t_start, edge, stream.T_in)
+        if !isfinite(t_val) || t_val < t_low - atol || t_val > t_high + atol
+            return false
+        end
+
+        f_val = get(f_start, edge, 0.0)
+        if !isfinite(f_val) || f_val < -atol || f_val > f_high + atol
+            return false
+        end
+    end
+
+    return true
+end
+
+"""
+Build edge-level warm starts for one stream.
+
+Selection rule:
+1. Utilities use utility-specific temperature seeding.
+2. Process streams use serial starts when feasible.
+3. Otherwise, process streams use parallel paraT/alpha starts.
+"""
+function _starts_for_stream!(prob::ClassicHENSProblem, stream_name::String, EMAT, superstructure::AbstractSplitSuperstructure)
+    stream = prob.all_dict[stream_name]
+    t_start, f_start = _initialize_stream_defaults!(prob, stream_name, superstructure)
+
+    if stream isa AbstractUtility
+        _apply_utility_starts!(stream, superstructure, t_start)
+        return t_start, f_start
+    end
+
+    matches = _ordered_matches(prob, stream)
+    if isempty(matches)
+        return t_start, f_start
+    end
+
+    can_serial = superstructure isa FloudasCiricGrossmann && _serial_feasible(prob, stream, matches, EMAT)
+    if can_serial
+        _apply_serial_starts!(prob, stream, superstructure, matches, t_start, f_start)
     else
-        hot_T_in = hot_T_out + Q/hot_matching_stream.mcp
+        _apply_parallel_starts!(prob, stream, superstructure, matches, t_start, f_start, EMAT)
+        if !_starts_within_bounds(prob, stream, superstructure, t_start, f_start)
+            _apply_serial_starts!(prob, stream, superstructure, matches, t_start, f_start)
+        end
     end
 
-    cold_T_out = overall_network[cold_stream.name].metadata["Working Terminal T"]
-    cold_T_in = cold_T_out - Q/cold_stream.mcp
-
-    test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
+    return t_start, f_start
 end
-
-stream_name = "H2"
-matching_stream_name = "CW"
-
-hot_stream = prob.all_dict[stream_name]
-cold_matching_stream = prob.all_dict[matching_stream_name]
-
-function test_terminal_match(hot_stream::Union{HotStream}, cold_matching_stream::Union{ColdStream, SimpleColdUtility}, EMAT, overall_network)
-    Q = prob.results_dict[:Q][cold_matching_stream.name, hot_stream.name]
-
-    hot_T_out = overall_network[hot_stream.name].metadata["Working Terminal T"]
-    hot_T_in = hot_T_out + Q/hot_stream.mcp
-    
-    cold_T_out = overall_network[cold_matching_stream.name].metadata["Working Terminal T"]
-    if cold_matching_stream isa SimpleColdUtility
-        cold_T_in = cold_matching_stream.T_in
-    else
-        cold_T_in = cold_T_out - Q/cold_matching_stream.mcp
-    end
-
-    test_terminal_match(hot_T_out, hot_T_in, cold_T_out, cold_T_in, EMAT)
-end
-
-## Main while loop for attaining feasible initial values.
-# This will be mutated in the initialization loop
-working_HX_list = deepcopy(prob.results_dict[:HX_list])
-
-# Initialize all the Working Terminal Temperatures to T_out: 
-# Also 
-for (k,v) in overall_network
-    push!(v.metadata, "Working Terminal Node" => only(v.major_mixer))
-    push!(v.metadata, "Working Terminal T" => prob.all_dict[k].T_out)
-
-    # Set the temperatures of the source -> BS edge and the BM -> Sink edge
-    superstructure = overall_network[k]
-    SO_BS_edge = only(out_edges(superstructure.source[1], superstructure))
-    set_start_value(model[:t][(k, SO_BS_edge)], prob.all_dict[k].T_in)
-    
-    BM_SK_edge = only(in_edges(superstructure.sink[1], superstructure))
-    set_start_value(model[:t][(k, BM_SK_edge)], prob.all_dict[k].T_out)
-
-    if prob.all_dict[k] isa Union{HotStream, ColdStream} # Utilities don't have f streams
-        set_start_value(model[:f][(k, SO_BS_edge)], prob.all_dict[k].mcp)
-        set_start_value(model[:f][(k, BM_SK_edge)], prob.all_dict[k].mcp)
-    end
-end
-
-only(overall_network["C2"].metadata["Working Terminal Node"] )
-
-# 1. Place utilies at edges
-# 1.A Hot utilities: 
-hot_utilities = filter(working_HX_list) do (k,v) 
-    prob.all_dict[k] isa SimpleHotUtility
-end
-
-hot_util = only(keys(hot_utilities))
-cold_stream = only(working_HX_list[hot_util]) # Not gen.
-#for hot_util in hot_utilities
-    for cold_stream in working_HX_list[hot_util]
-        @show cold_stream
-    end
-
-    (; terminal_feasible, hot_T_out, hot_T_in, cold_T_out, cold_T_in) = test_terminal_match(cold_stream,hot_util, EMAT, overall_network)
-    if terminal_feasible
-        set_serial_terminal_starting_points!(model, hot_T_out, hot_T_in, cold_T_out, cold_T_in) 
-    end
-
-
-
-superstructure = overall_network["C2"]
-
-# TODO: 0: Set these inits. Also push all inits to a dict for plotting. 
-k = "C2"
-prob.all_dict[k].T_in
-
-stream = prob.all_dict[k]
-superstructure = overall_network[k]
-matching_stream = "ST"
-terminal_match_HX = only(filter(k -> k.match == matching_stream, superstructure.hxs))
-new_terminal_node = only(get_source_nodes(terminal_match_HX, superstructure))
 
 """
-This function is to be called if a HX is chosen to be placed (by setting starting points) as the last serial HX of the `stream` OR prior to another HX which has also been previously placed as a serial terminal HX.
-This function sets starting points such a strictly serial connection is made between the `new_terminal_node` and the `stream`'s current terminal node which can be queried by `superstructure.metadata["Working Terminal Node"]`.
-Lastly, the `superstructure.metadata["Working Terminal Node"]` is set to the `new_terminal_node` and the `superstructure.metadata["Working Terminal T"]` is set to the new temperature.
+Create starts for match-level ΔT variables and optional LMTD variables.
+
+Why:
+The NLP objective and feasibility constraints depend on these match variables; supplying
+consistent starts reduces first-iteration infeasibility and improves IPOPT stability.
 """
-function set_serial_terminal_starting_points!(model, new_terminal_node::Node, stream::ColdStream, superstructure::AbstractSplitSuperstructure; hot_T_out, hot_T_in, cold_T_out, cold_T_in)
+function _match_temperature_starts!(prob::ClassicHENSProblem, model::AbstractModel, HLD_list, overall_network, EMAT)
+    start_vals = Dict{VariableRef, Float64}()
+
+    has_T_lmtd = haskey(JuMP.object_dictionary(model), :T_LMTD)
+    for match in HLD_list
+        hot_name, cold_name = match
+        hot_super = overall_network[hot_name]
+        cold_super = overall_network[cold_name]
+        hot_hx = _find_hx(hot_super, cold_name)
+        cold_hx = _find_hx(cold_super, hot_name)
+
+        hot_hx_in = only(in_edges(hot_hx, hot_super))
+        hot_hx_out = only(out_edges(hot_hx, hot_super))
+        cold_hx_in = only(in_edges(cold_hx, cold_super))
+        cold_hx_out = only(out_edges(cold_hx, cold_super))
+
+        t_hot_in = JuMP.start_value(model[:t][(hot_name, hot_hx_in)])
+        t_hot_out = JuMP.start_value(model[:t][(hot_name, hot_hx_out)])
+        t_cold_in = JuMP.start_value(model[:t][(cold_name, cold_hx_in)])
+        t_cold_out = JuMP.start_value(model[:t][(cold_name, cold_hx_out)])
+
+        dt_u = max(t_hot_in - t_cold_out, EMAT + 1e-3)
+        dt_l = max(t_hot_out - t_cold_in, EMAT + 1e-3)
+
+        start_vals[model[:ΔT_upper][match]] = dt_u
+        start_vals[model[:ΔT_lower][match]] = dt_l
+
+        if has_T_lmtd
+            lmtd = smallest_value + (2 / 3) * sqrt(dt_u * dt_l) + (1 / 6) * (dt_u + dt_l)
+            start_vals[model[:T_LMTD][match]] = max(lmtd, smallest_value)
+        end
+    end
+
+    return start_vals
 end
 
-@assert new_terminal_node isa MinorMixer || error("The new terminal node must be a MinorMixer") 
-# 1. Set the starting points for the edge from MinorMixer to HX
-MM_HX_edge = only(out_edges(new_terminal_node, superstructure))
-
-function set_serial_terminal_starting_points!(model, new_terminal_node::Node, stream::HotStream, superstructure::AbstractSplitSuperstructure; hot_T_out, hot_T_in, cold_T_out, cold_T_in)
-end
-
-
-
-
-
-#BM_SK_edge = only(in_edges(superstructure.sink[1], superstructure))
-#@constraint(model, model[:f][(stream.name, BM_SK_edge)] == stream.mcp)
-#@constraint(model, model[:t][(stream.name, BM_SK_edge)] == stream.T_out)  
-
-
-function get_utility_match_start_vals()
-end
-    utils_dict = merge(prob.cold_utilities_dict, prob.hot_utilities_dict)
-    for (k,v) in utils_dict
-        @show k
-    end
-    (k,v) = first(utils_dict)
-    matched_streams = prob.results_dict[:HX_list][k]
-    for stream in matched_streams
-        @show stream
-    end
-
-#function set_start_values!(prob, EMAT, overall_network; verbose = verbose)
-    # 1. Initialize the required dictionaries for book-keeping:
-    prob.results_dict[:unflagged_matches] = deepcopy(filter(prob.results_dict[:HX_list]) do (k,v)
-        k in prob.stream_names
-    end
-    )
-
-    prob.results_dict[:working_terminal_temp] = Dict(stream => prob.streams_dict[stream].T_out for stream in prob.stream_names)
-    prob.results_dict[:working_terminal_node] = Dict(stream => only(overall_network[stream].major_mixer) for stream in prob.stream_names)
-
-
-
-stream = prob.all_dict["C1"]
-superstructure = overall_network["C1"]
 """
-$(TYPEDSIGNATURES)
-Used to set the starting values of the network generation NLP.
-This specifies that a given `match` HX should be placed serially at the working terminal of a given `stream`.
-Initially, the `working_terminal_node` of a stream is its `MajorMixer`. If a `HX` match is set to be at the terminal, then the `working_terminal_node` is changed to the mixer feeding this `HX`.  
-The, `working_terminal_temp` is changed from `T_out` and calculated for each added terminal match. 
+Public entry-point: generate warm starts for network-generation NLP.
+
+Returned structure:
+`(; v_names::Vector{VariableRef}, v_starts::Vector{Float64})`
+
+This function sets starts directly on model variables and also returns them to preserve
+the existing `initial_values` interface used by `generate_network!`.
 """
-#function set_terminal_match!(model::AbstractModel, prob, stream::ColdStream, superstructure::AbstractSplitSuperstructure, match ; verbose = true)
-    # A. Set starting values for the temperatures:
-    set_start_value(model[:t][(stream.name, only(out_edges(only(superstructure.source), superstructure)))], 69.0)
+function build_network_start_values(prob::ClassicHENSProblem, model::AbstractModel, EMAT, overall_network::Dict{String, AbstractSuperstructure}, HLD_list; verbose = false)
+    v_names = VariableRef[]
+    v_starts = Float64[]
 
-    # B. Set starting values for the temperatures:
-    set_start_value(model[:t][(stream.name, only(out_edges(only(superstructure.source), superstructure)))], 69.0)
+    for stream_name in prob.all_names
+        superstructure = overall_network[stream_name]
+        superstructure isa AbstractSplitSuperstructure || continue
 
+        t_start, f_start = _starts_for_stream!(prob, stream_name, EMAT, superstructure)
 
+        for edge in superstructure.edges
+            t_var = model[:t][(stream_name, edge)]
+            t_val = get(t_start, edge, prob.all_dict[stream_name].T_in)
+            push!(v_names, t_var)
+            push!(v_starts, t_val)
+            JuMP.set_start_value(t_var, t_val)
 
+            if prob.all_dict[stream_name] isa AbstractStream
+                f_var = model[:f][(stream_name, edge)]
+                f_val = get(f_start, edge, 0.0)
+                push!(v_names, f_var)
+                push!(v_starts, f_val)
+                JuMP.set_start_value(f_var, f_val)
+            end
+        end
+    end
+
+    match_starts = _match_temperature_starts!(prob, model, HLD_list, overall_network, EMAT)
+    for (v, s) in match_starts
+        push!(v_names, v)
+        push!(v_starts, s)
+        JuMP.set_start_value(v, s)
+    end
+
+    verbose && @info "Generated starting values from combinatorial mCp heuristics" n_vars = length(v_names)
+    return (; v_names, v_starts)
+end

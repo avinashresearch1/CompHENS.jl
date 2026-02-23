@@ -2,6 +2,19 @@ using JuMP
 using HiGHS
 
 """
+Round a solver objective to an integer with a strict absolute tolerance.
+
+The minimum-units MILP objective is integer by construction. Some solvers can
+return values like `8.99999999999999`, so we allow only tiny floating-point
+noise and throw if the result is materially non-integer.
+"""
+function _strict_integer_objective(value::Real; atol::Float64 = 1e-8)
+    rounded = round(Int, value)
+    abs(value - rounded) <= atol || error("Minimum-units objective is non-integer: $(value) (rounded=$(rounded), atol=$(atol)).")
+    return rounded
+end
+
+"""
 $(TYPEDSIGNATURES)
 
 Constructs and solves the MILP transshipment problem of Papoulias_Grossmann_1983 for the minimum number of HX units. 
@@ -62,7 +75,7 @@ function solve_minimum_units_subproblem!(prob::ClassicHENSProblem; time_limit = 
     end
 
     # Post-processing
-    min_units = Int(objective_value(model))
+    min_units = _strict_integer_objective(objective_value(model))
     verbose && println("Minimum number of units: $(min_units)")
     prob.results_dict[:min_units] = min_units
 return
@@ -163,9 +176,8 @@ function solve_minimum_units_subproblem!(prob::MultiPeriodFlexibleHENSProblem; o
     end
 
     # Post-processing
-    min_units = Int(round(objective_value(model); digits = 0))
+    min_units = _strict_integer_objective(objective_value(model))
     verbose && println("Minimum number of units: $(min_units)")
     prob.results_dict[:min_units] = min_units
 return
 end
-

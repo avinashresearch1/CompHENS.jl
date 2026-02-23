@@ -11,7 +11,10 @@ Pkg.build("PyCall")
 ```
 Then **restart** the Julia process. 
 """
-function plot_HEN_streamwise()
+function plot_HEN_streamwise(args...; kwargs...)
+    # Concrete plotting implementation was moved to optional extension
+    # `CompHENSNetworkXPlotsExt` to avoid hard dependency on PyCall.
+    error("Plotting requires the optional extension `CompHENSNetworkXPlotsExt` (install/load PyCall).")
 end
 
 """
@@ -20,5 +23,8 @@ end
 Gets a NetworkX Digraph for each stream
     Returns: (g, edge_labels, node_labels, position, node_size)
 """
-function get_stream_graph()
+function get_stream_graph(args...; kwargs...)
+    # Concrete graph builder lives in optional extension
+    # `CompHENSNetworkXPlotsExt`.
+    error("Graph plotting requires the optional extension `CompHENSNetworkXPlotsExt` (install/load PyCall).")
 end

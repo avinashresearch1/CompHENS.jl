@@ -6,3 +6,6 @@
 /.vscode
 /Result_Plots
 *.log
+AGENTS/*
+.agent/*
+scripts/*

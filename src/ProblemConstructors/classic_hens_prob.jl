@@ -64,7 +64,7 @@ Reads data from an XSLX file in `file_path_xlsx` and constructs a `ClassicHENSPr
 - **`file_path_xlsx`** needs to be a string that ends in .xlsx
 - By default `ΔT_min` is set to 10 °C.
 """
-function ClassicHENSProblem(file_path_xlsx::String; ΔT_min, verbose = false)
+function ClassicHENSProblem(file_path_xlsx::String; ΔT_min = 10.0, verbose = false)
     stream_data_dfs = DataFrame[]
     XLSX.openxlsx(file_path_xlsx) do xf
         verbose && println("Num worksheets imported: $(XLSX.sheetcount(xf))")
@@ -86,7 +86,7 @@ Given a `DataFrame` object (from a single excel worksheet), returns a `ClassicHE
 
 Note that this function can also called for other problem types e.g., `MultiPeriodFlexibleHENSProblem`. 
 """
-function ClassicHENSProblem(stream_data_df::DataFrame; ΔT_min)
+function ClassicHENSProblem(stream_data_df::DataFrame; ΔT_min = 10.0)
     # Column names of XLSX interface:
     stream_label, type_label, t_in_label, t_out_label, heat_cap_label, heat_coeff_label, cost_label, forbidden_label, compulsory_label = "Stream", "Type [H, C, HU or CU]", "Supply Temperature T_in [C or K]", "Target Temperature T_out [C or K]", "Heat Capacity mCp [kW/C or kW/K]", "Heat transfer coefficient h [kW/m2C or kW/m2K]", "Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches"
     additional_user_fields = Set{String}(["Cost [\$/kW]", "Forbidden Matches", "Compulsory Matches", "Maximum Temperature", "Mininum Temperature"])
@@ -132,7 +132,6 @@ function M(hot_stream::String, cold_stream::String, prob::ClassicHENSProblem)
     merged_cold = merge(prob.cold_streams_dict, prob.cold_utilities_dict)
     return min(merged_hot[hot_stream].Q, merged_cold[cold_stream].Q)
 end
-
 
 
 

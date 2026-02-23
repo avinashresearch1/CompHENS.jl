@@ -1,0 +1,3 @@
+[submodule "AGENTS"]
+	path = AGENTS
+	url = git@github.com:avinashresearch1/AGENTS.git

@@ -30,7 +30,7 @@ module CompHENSNetworkXPlotsExt
     """
     function CompHENS.plot_HEN_streamwise(prob::ClassicHENSProblem, model::AbstractModel, overall_network::Dict{String, AbstractSuperstructure}, file_name; digits = 1)
         __init__()
-        pdf = CompHENS.back_pdf.PdfPages(file_name)
+        pdf = back_pdf.PdfPages(file_name)
         for stream in prob.all_names
             plt.close()
             (g, edge_labels, node_labels, position, node_size) = get_stream_graph(prob.all_dict[stream], prob, model, overall_network[stream]; digits = digits)

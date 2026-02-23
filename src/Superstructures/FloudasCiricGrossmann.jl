@@ -32,7 +32,7 @@ end # TODO: Change this to use parametric types.
 
 function FloudasCiricGrossmann(; verbose = true)
     verbose && @info "Using Superstructure: Floudas, C.A., Ciric, A.R. and Grossmann, I.E., Automatic synthesis of optimum heat exchanger network configurations. AIChE Journal. 1986." 
-    FloudasCiricGrossmann(nothing, nothing, Dict{Symbol, Any}())
+    FloudasCiricGrossmann(nothing, nothing, Dict{String, Any}())
 end
 
 function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose = true)
@@ -66,7 +66,7 @@ function FloudasCiricGrossmann(stream::String, prob::ClassicHENSProblem; verbose
         length(filter(edge -> edge.in == mixer, edges)) == 1 || error("Each mixer only has a single outgoing edge")
     end
     
-    return FloudasCiricGrossmann(nodes, edges, Dict{Symbol, Any}())
+    return FloudasCiricGrossmann(nodes, edges, Dict{String, Any}())
 end
 
 function construct_superstructure(stream::String, superstructure::FloudasCiricGrossmann, prob::ClassicHENSProblem; verbose = true)
