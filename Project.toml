@@ -1,7 +1,7 @@
 name = "CompHENS"
 uuid = "873a7a81-90fd-4468-8feb-46a7ba58f008"
 authors = ["Avinash Subramanian"]
-version = "0.1.4"
+version = "0.2"
 
 [deps]
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
