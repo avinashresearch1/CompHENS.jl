@@ -13,8 +13,70 @@ If you use this toolkit, please cite:
 Avinash Subramanian, Flemming Holtorf, Rahul Anantharaman, Truls Gundersen. (2023). CompHENS: Computational Tools for Heat Exchanger Network Synthesis (Version v0.1.0) [Computer software]
 DOI: 10.5281/zenodo.7545869
 
-:warning: **Warning** <br>
-This package is currently under development. The user interface may change substantially prior to the first stable release.
+## XLSX interface usage (recommended): 
+1. Clone this repo. Open the Julia repl, then `] activate .` and `]instantiate`. This will install all required dependencies.
+2. Test that this works on one of the examples such as by running the code in `Examples/XLSX_interface/ClassicHENSProblem/Colberg_Morari_1990/ColbergMorari.jl`
+3. For your own problem:
+   - Fill in the stream data in an xlsx file in a similar way as `CompHENS_interface_ColbergMorari.xlsx`
+   - The structure of the code that runs the problem is as follows:
+  
+```
+# Workflow using XLSX input:
+# 1. Import necessary packages:
+using CompHENS
+using Plots
+using JuMP
+using HiGHS
+using Ipopt
+using MathOptInterface
+using Test
+const MOI = MathOptInterface
+
+# 2. Specify path to xlsx file
+file_path_xlsx = joinpath(@__DIR__, "CompHENS_interface_ColbergMorari.xlsx")
+
+# 3. Construct the appropriate kind of problem: Here it is a `ClassicHENSProblem`. Specify the ΔT_min.
+prob = ClassicHENSProblem(file_path_xlsx; ΔT_min = 20.0, verbose = true)
+
+# 4. Solve minimum utilities problem
+
+solve_minimum_utilities_subproblem!(prob)
+print_min_utils_pinch_points(prob)
+
+# 5. Solve the minimum number of units subproblem:
+solve_minimum_units_subproblem!(prob)
+@show prob.min_units
+
+# 6. Generate stream matches. This requires specifying the EMAT and the number of additional units. 
+EMAT = 2.5
+prob.results_dict[:add_units] = 1
+@time generate_stream_matches!(prob, EMAT; digits = 8)
+
+# View the results. 
+prob.results_dict[:Q]
+
+# 7. Network generation:
+# Specify which superstructure to use for each stream
+obj_func = CostScaledPaterson()
+overall_network = merge(construct_superstructure(prob.stream_names, FloudasCiricGrossmann(), prob), construct_superstructure(prob.utility_names, FloudasCiricGrossmann(), prob))
+
+# Specify base costs, scaling coefficinets. 
+base_cost, cost_coeff, scaling_coeff = 8600, 670, 0.83
+optimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_iter" => 5000, "tol" => 1e-6)
+
+generate_network!(prob, EMAT; overall_network = overall_network, obj_func = obj_func, optimizer = optimizer, verbose = true, cost_coeff = cost_coeff, scaling_coeff = scaling_coeff, base_cost = base_cost, save_model = true)
+model = prob.results_dict[:network_gen_model]
+
+# If this fails, the optimizer has failed to find a local minimum
+@test termination_status(model) in [MOI.LOCALLY_SOLVED, MOI.OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL]
+@show termination_status(model)
+@test primal_status(model) == MOI.FEASIBLE_POINT
+# print(model)
+value.(model[:ΔT_upper])
+value.(model[:ΔT_lower])
+value.(model[:T_LMTD])
+get_design_area(prob)
+```
 
 ## No code usage:
 1. Download the 2 interface files from: https://github.com/avinashresearch1/CompHENS.jl/tree/main/NoCode_Interface and put them in a folder of your choice (same files from email). 
