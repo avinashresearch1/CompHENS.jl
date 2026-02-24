@@ -74,7 +74,7 @@ value.(model[:T_LMTD])
 get_design_area(prob)
 ```
 
-## No code usage:
+## No code usage (this is not well tested in v0.20 and likely won't work):
 1. Download the 2 interface files from: https://github.com/avinashresearch1/CompHENS.jl/tree/main/NoCode_Interface and put them in a folder of your choice (same files from email). 
 2. Type in the stream data in the `InputData.xlsx` file. Note that all streams must have a sensible temperature difference (say use a 1 C temperature difference for condensing steam).
 3. Download and Install Julia from [Julia website](https://julialang.org/downloads/). The No-Code interface only requires the Julia REPL.
